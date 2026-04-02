@@ -62,12 +62,14 @@ class Agent:
         current_distance_to_goal = np.linalg.norm(self.goal_pos - self.pos)
         progress = (
             original_distance_to_goal - current_distance_to_goal
-        ) / original_distance_to_goal
+        ) / (original_distance_to_goal + 1e-10)
 
         goal_vector = self.goal_pos - self.pos
-        goal_vector = goal_vector / np.linalg.norm(goal_vector)
+        dist_norm = np.linalg.norm(goal_vector)
+        if dist_norm > 1e-10:
+            goal_vector = goal_vector / dist_norm
+        
         cosine_angle = goal_vector.dot(self.direction)
-
         speed_ratio = self.current_speed / self.config.max_speed
 
         return {
@@ -87,10 +89,8 @@ class Agent:
         return None  # TODO: Implement action selection
 
     def update_pos(self, delta_t: float = 1 / 30):
-
         if self.goal_reached:
             return
-
         if not self.active:
             return
         self.old_pos = self.pos.copy()
@@ -100,24 +100,15 @@ class Agent:
     def convert_velocity_to_global(self, velocity: Vector2, heading_vector: Vector2):
         dist = np.linalg.norm(heading_vector)
         if dist > 1e-10:
-            # Normalized direction to goal (New Y-axis)
             u_x = heading_vector[0] / dist
             u_y = heading_vector[1] / dist
-
-            # Action components
             a_x = velocity.x
             a_y = velocity.y
-
-            # Transform to global: v_global = a_x * Right + a_y * Forward
-            # Right vector corresponds to (u_y, -u_x)
             global_vx = a_x * u_y + a_y * u_x
             global_vy = -a_x * u_x + a_y * u_y
-
             target_velocity_global = np.array([global_vx, global_vy])
         else:
-            # If already at goal, keep existing behavior or zero out
             target_velocity_global = velocity.to_numpy()
-
         return target_velocity_global
 
     def apply_target_velocity(self, target_velocity: Vector2):
@@ -127,25 +118,19 @@ class Agent:
 
         target_velocity_global = self.convert_velocity_to_global(
             target_velocity, (self.goal_pos - self.pos)
-
         )
 
         current_velocity = self.current_speed * self.direction
         force = target_velocity_global - current_velocity
         new_velocity = current_velocity + force * (self.response_time * DELTA_T)
 
-        # Handle zero velocity case to avoid division by zero
         velocity_magnitude = np.linalg.norm(new_velocity)
-        if velocity_magnitude > 1e-10:  # Small threshold to avoid numerical issues
+        if velocity_magnitude > 1e-10:
             self.current_speed = velocity_magnitude
-            self.direction = (
-                new_velocity / velocity_magnitude
-            )  # Normalize to unit vector
+            self.direction = new_velocity / velocity_magnitude
         else:
             self.current_speed = 0.0
-            # Keep previous direction when speed is zero
 
-        # Clamp speed to maximum (was incorrectly using max instead of min)
         self.current_speed = min(self.current_speed, self.config.max_speed)
 
 
@@ -164,7 +149,7 @@ class Environment(pettingzoo.ParallelEnv):
         self.config = config
         self.state_image_size = config.state_image_size
         self.boundary = PolygonBoundary(config.boundary)
-        self.num_groups = len(config.agents)  # rename config.agents to config.groups
+        self.num_groups = len(config.agents)
         self.avoid_collision_checks = avoid_collision_checks
 
         agent_configs = self.preprocess_agent_configs(
@@ -215,48 +200,34 @@ class Environment(pettingzoo.ParallelEnv):
         self.pending_group_bonus = {agent_id: 0.0 for agent_id in self.agents_dict}
         self.num_steps = 0
 
-        # Dynamic/Shared Goals
         self.goal_pool = []
         self.occupied_goals = set()
         if self.config.use_shared_goals:
             for group in self.config.agents:
-                # Each group defines a possible goal region
                 self.goal_pool.append(group.goal_pos)
 
-        # PettingZoo required attributes
         self.possible_agents = list(self.agents_dict.keys())
         self.agents = self.possible_agents.copy()
 
-        # Define observation and action spaces
         self._setup_spaces()
 
-        # Rendering setup
         self.render_mode = render_mode
         self.window = None
         if render_mode == "human" or render_mode == "rgb_array":
-            # Use headless mode for rgb_array to avoid showing window
-            # Use headless mode for rgb_array to avoid showing window
             headless = render_mode == "rgb_array"
             self.window = SimulationWindow(
                 target_fps=30, record=True, headless=headless
             )
             
-        # Stuck Detection Variables
-        self.stuck_check_interval = 50  # Check every N steps (approx 1.5 seconds)
-        self.stuck_min_dist = 0.5  # Must move at least this much
+        self.stuck_check_interval = 50
+        self.stuck_min_dist = 0.5
         self.agent_stuck_counters = {agent_id: 0 for agent_id in self.agents}
         self.agent_last_positions = {agent_id: agent.pos.copy() for agent_id, agent in self.agents_dict.items()}
-
-    def get_window(self):
-        return self.window
 
     def preprocess_agent_configs(
         self, agent_configs: List[AgentConfig], num_agents_per_group: int
     ):
-        """Preprocess agent configs to create multiple agents per group."""
         processed_configs = []
-        num_groups = len(agent_configs)
-
         for group_idx, agent_config in enumerate(agent_configs):
             start_rect = agent_config.start_pos
             width = start_rect.width
@@ -265,7 +236,6 @@ class Environment(pettingzoo.ParallelEnv):
 
             for i in range(num_agents_per_group):
                 new_agent_config = agent_config.model_copy()
-
                 if i == 0:
                     x_offset = 0
                 elif i % 2 == 1:
@@ -273,51 +243,25 @@ class Environment(pettingzoo.ParallelEnv):
                 else:
                     x_offset = (i // 2) * spacing
 
-                this_center = Vector2(
-                    x=middle + x_offset,
-                    y=start_rect.center.y,
-                )
+                this_center = Vector2(x=middle + x_offset, y=start_rect.center.y)
                 new_rect = Rectangle(
                     center=this_center,
                     width=(width / num_agents_per_group - new_agent_config.radius * 2),
                     height=start_rect.height,
                 )
                 new_agent_config.start_pos = new_rect
-
                 processed_configs.append(new_agent_config)
         return processed_configs
 
     def _setup_spaces(self):
-        """Setup observation and action spaces for all agents."""
-        # Action space: 2D velocity vector (vx, vy)
         max_speed = max(agent.config.max_speed for agent in self.agents_dict.values())
         self._action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
-
-        # Observation space: state vector + lidar readings
-        # State vector: [progress, cosine_angle, speed_ratio, speed_ratio * cosine_angle, distance_to_goal]
         state_dim = self.agent_states_dim
-        lidar_dim = (
-            self.config.num_rays * 3
-        )  # 3 channels per ray (obstacle, boundary, agent)
+        lidar_dim = self.config.num_rays * 3
 
-        obs_low = np.concatenate(
-            [
-                np.array([-1] * state_dim),  # state vector bounds
-                np.zeros(lidar_dim),  # lidar readings are non-negative
-            ]
-        )
-        obs_high = np.concatenate(
-            [
-                np.array(
-                    [1] * state_dim
-                ),  # state vector bounds, externally guaranteed distance max = 1
-                np.full(lidar_dim, max_speed),  # max lidar range
-            ]
-        )
-
-        self._observation_space = spaces.Box(
-            low=obs_low, high=obs_high, dtype=np.float32
-        )
+        obs_low = np.concatenate([np.array([-1] * state_dim), np.zeros(lidar_dim)])
+        obs_high = np.concatenate([np.array([1] * state_dim), np.full(lidar_dim, max_speed)])
+        self._observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
 
     @property
     def agent_states_dim(self):
@@ -327,27 +271,13 @@ class Environment(pettingzoo.ParallelEnv):
     def lidar_dim(self):
         return self.config.num_rays * 3
 
-    @property
-    def observation_spaces(self):
-        """Returns observation spaces for all agents."""
-        return {agent: self._observation_space for agent in self.agents}
-
-    @property
-    def action_spaces(self):
-        """Returns action spaces for all agents."""
-        return {agent: self._action_space for agent in self.agents}
-
     def observation_space(self, agent):
-        """Returns observation space for a specific agent."""
         return self._observation_space
 
     def action_space(self, agent):
-        """Returns action space for a specific agent."""
         return self._action_space
 
-    def is_point_colliding(
-        self, pos: np.ndarray, starting_points: List[np.ndarray], radius: float
-    ) -> bool:
+    def is_point_colliding(self, pos: np.ndarray, starting_points: List[np.ndarray], radius: float) -> bool:
         for starting_point in starting_points:
             if np.linalg.norm(pos - starting_point) < radius:
                 return True
@@ -356,10 +286,7 @@ class Environment(pettingzoo.ParallelEnv):
     def _point_in_rectangle(self, pos: np.ndarray, rect: Rectangle, margin: float = 0.0) -> bool:
         half_w = rect.width / 2 + margin
         half_h = rect.height / 2 + margin
-        return (
-            abs(pos[0] - rect.center.x) <= half_w
-            and abs(pos[1] - rect.center.y) <= half_h
-        )
+        return (abs(pos[0] - rect.center.x) <= half_w and abs(pos[1] - rect.center.y) <= half_h)
 
     def _agent_in_rectangle(self, agent: Agent, rect: Rectangle) -> bool:
         return self._point_in_rectangle(agent.pos, rect, margin=agent.radius * 0.5)
@@ -376,9 +303,7 @@ class Environment(pettingzoo.ParallelEnv):
             len(active_switches) >= gate.opens_when_active_switches
             for gate in self.gates
         ]
-        self.gate_just_opened = any(
-            new and not old for old, new in zip(previous_mask, self.gate_open_mask)
-        )
+        self.gate_just_opened = any(new and not old for old, new in zip(previous_mask, self.gate_open_mask))
 
     def _active_obstacles(self):
         obstacles = list(self.obstacles)
@@ -388,30 +313,17 @@ class Environment(pettingzoo.ParallelEnv):
         return obstacles
 
     def reset(self, seed=None, options=None):
-        """Reset the environment to initial state."""
         if seed is not None:
             np.random.seed(seed)
-
         starting_points = []
-
-        # Reset all agents to initial positions
         for agent in self.agents_dict.values():
-
             pos = sample_point_in_rectangle(agent.config.start_pos)
-
             num_tries = 0
-
-            # Checking for collision on frame 1 during init
-            while (
-                self.is_point_colliding(pos, starting_points, agent.radius*2.25)
-                and num_tries < 10
-            ):
+            while (self.is_point_colliding(pos, starting_points, agent.radius*2.25) and num_tries < 10):
                 pos = sample_point_in_rectangle(agent.config.start_pos)
                 num_tries += 1
-
             starting_points.append(pos)
             agent.pos = pos
-
             agent.goal_pos = sample_point_in_rectangle(agent.goal_sample_area)
             agent.current_speed = 0.1
             _, agent.direction = convert_to_polar(agent.goal_pos - agent.pos)
@@ -421,7 +333,6 @@ class Environment(pettingzoo.ParallelEnv):
             agent.last_raw_lidar_observation = None
             agent.old_pos = agent.pos.copy()
 
-        # Reset obstacles
         for obs in self.obstacles:
             if hasattr(obs, "reset"):
                 obs.reset()
@@ -436,37 +347,24 @@ class Environment(pettingzoo.ParallelEnv):
         self.group_bonus_awarded = {group_idx: False for group_idx in self.group_members}
         self.pending_group_bonus = {agent_id: 0.0 for agent_id in self.agents_dict}
         
-        # Reset dynamic goals
         self.occupied_goals = set()
         if self.config.use_shared_goals:
-            # Re-sample goal locations from the pool regions
-            self.current_goal_locations = [
-                sample_point_in_rectangle(goal_rect) for goal_rect in self.goal_pool
-            ]
+            self.current_goal_locations = [sample_point_in_rectangle(goal_rect) for goal_rect in self.goal_pool]
 
-        # Get initial observations
         observations = self._get_observations()
         infos = {agent: {} for agent in self.agents}
-
-        # Render initial state if render mode is set
         if self.render_mode == "human":
             self.render()
-
         return observations, infos
 
     def _get_observations(self):
-        """Get observations for all agents."""
         self._update_switch_gate_state()
         lidar_observations = self.get_lidar_observation()
-
-        # Update agent lidar data
         for agent_id, lidar_observation in zip(self.agents, lidar_observations):
             self.agents_dict[agent_id].last_raw_lidar_observation = lidar_observation
 
         processed_lidar_observations = [
-            self.process_lidar_observation(
-                self.agents_dict[agent_id].config.max_range, lidar_observation
-            )
+            self.process_lidar_observation(self.agents_dict[agent_id].config.max_range, lidar_observation)
             for agent_id, lidar_observation in zip(self.agents, lidar_observations)
         ]
 
@@ -474,530 +372,174 @@ class Environment(pettingzoo.ParallelEnv):
         for agent_idx, agent_id in enumerate(self.agents):
             agent = self.agents_dict[agent_id]
             state_dict = agent.get_state_dict()
-            switch_features = np.array(
-                [
-                    float(any(self._agent_in_rectangle(agent, switch.zone) for switch in self.switches)),
-                    len(self.active_switches) / max(1, len(self.switches)) if self.switches else 0.0,
-                    float(any(self.gate_open_mask)),
-                ],
-                dtype=np.float32,
-            )
-            state_vector = np.concatenate(
-                [np.array(state_dict["state_vector"], dtype=np.float32), switch_features]
-            )
-
-            # Dynamic goals: observation is relative to the nearest UNCLAIMED goal
+            switch_features = np.array([
+                float(any(self._agent_in_rectangle(agent, switch.zone) for switch in self.switches)),
+                len(self.active_switches) / max(1, len(self.switches)) if self.switches else 0.0,
+                float(any(self.gate_open_mask)),
+            ], dtype=np.float32)
+            
             if self.config.use_shared_goals:
-                # Filter out claimed goals
                 available_goals = [
                     self.current_goal_locations[i] for i in range(len(self.current_goal_locations))
                     if i not in self.occupied_goals
                 ]
                 if available_goals:
-                    # Find nearest available goal
                     distances = [np.linalg.norm(loc - agent.pos) for loc in available_goals]
                     nearest_idx = np.argmin(distances)
                     agent.goal_pos = available_goals[nearest_idx]
-                
-                # Update state vector with newest goal info
                 state_dict = agent.get_state_dict()
-                state_vector = np.concatenate(
-                    [np.array(state_dict["state_vector"], dtype=np.float32), switch_features]
-                )
 
-            lidar_vector = (
-                processed_lidar_observations[agent_idx].flatten().astype(np.float32)
-            )
-
-            # concat the state features and the lidar features together
+            state_vector = np.concatenate([np.array(state_dict["state_vector"], dtype=np.float32), switch_features])
+            lidar_vector = processed_lidar_observations[agent_idx].flatten().astype(np.float32)
             observations[agent_id] = np.concatenate([state_vector, lidar_vector])
-
 
         return observations
 
     def calculate_reward(self, agent: Agent, collision_data: CollisionData):
         if agent.goal_reached:
             return 100
-
         if collision_data.is_colliding:
             return -10
-
         goal_reward = agent.direction.dot(agent.goal_pos - agent.pos)
-        scale_goal_reward_with_speed = goal_reward * (
-            agent.current_speed / agent.config.max_speed
-        )
-
-        stay_alive_reward = -0.05
-        scale_goal_reward_with_speed *= 0.25
-        reward = scale_goal_reward_with_speed + stay_alive_reward
-
+        scale_goal_reward_with_speed = goal_reward * (agent.current_speed / agent.config.max_speed)
+        reward = scale_goal_reward_with_speed * 0.25 - 0.05
         for idx, switch in enumerate(self.switches):
             if idx in self.active_switches and self._agent_in_rectangle(agent, switch.zone):
                 reward += switch.reward
-
         if self.gate_just_opened:
             reward += 2.0
-
         reward += self.pending_group_bonus.get(agent.agent_id, 0.0)
-
-        # 🛡️ Formation Reward
         if self.config.formation_reward_weight > 0:
-            # Group centroid
             group_idx = self.agent_group_map[agent.agent_id]
-            members = self.group_members[group_idx]
-            member_positions = [self.agents_dict[aid].pos for aid in members]
-            centroid = np.mean(member_positions, axis=0)
-            
-            # Distance from centroid
-            dist_from_centroid = np.linalg.norm(agent.pos - centroid)
-            
-            # Penalize deviation from centroid beyond a small "comfort radius"
-            formation_loss = max(0, dist_from_centroid - 0.05) 
-            reward -= self.config.formation_reward_weight * formation_loss
-
+            centroid = np.mean([self.agents_dict[aid].pos for aid in self.group_members[group_idx]], axis=0)
+            reward -= self.config.formation_reward_weight * max(0, np.linalg.norm(agent.pos - centroid) - 0.05)
         return reward
 
     def _update_group_arrival_bonus(self):
         if self.config.simultaneous_arrival_bonus <= 0 or self.config.simultaneous_arrival_window <= 0:
             return
-
         for agent_id, agent in self.agents_dict.items():
             if agent.goal_reached and self.group_goal_steps[agent_id] is None:
                 self.group_goal_steps[agent_id] = self.num_steps
-
         for group_idx, members in self.group_members.items():
-            if self.group_bonus_awarded[group_idx]:
-                continue
-            goal_steps = [self.group_goal_steps[agent_id] for agent_id in members]
-            if any(step is None for step in goal_steps):
-                continue
-            if max(goal_steps) - min(goal_steps) <= self.config.simultaneous_arrival_window:
-                self.group_bonus_awarded[group_idx] = True
-                for agent_id in members:
-                    self.pending_group_bonus[agent_id] += self.config.simultaneous_arrival_bonus
+            if self.group_bonus_awarded[group_idx]: continue
+            goal_steps = [self.group_goal_steps[aid] for aid in members]
+            if all(s is not None for s in goal_steps):
+                if max(goal_steps) - min(goal_steps) <= self.config.simultaneous_arrival_window:
+                    self.group_bonus_awarded[group_idx] = True
+                    for aid in members: self.pending_group_bonus[aid] += self.config.simultaneous_arrival_bonus
 
-    def state(self):
-        """
-        Return occupancy grids for the agents, the goals, and the obstacles
-        """
-
-        # Currently not used to train the central critic, but this returns a full fledged state vector
-        
-        grid_size = self.config.state_image_size
-        agent_occupancy_grid = np.zeros([self.n_agents, grid_size, grid_size])
-        goal_occupancy_grid = np.zeros([self.n_agents, grid_size, grid_size])
-        obstacle_occupancy_grid = np.zeros([1, grid_size, grid_size])
-
-        for idx, (_, agent) in enumerate(self.agents_dict.items()):
-            start_pos = agent.pos
-            goal_pos = agent.goal_pos
-
-            agent_x_grid = int(
-                np.clip(start_pos[0] * grid_size, 0, grid_size - 1)
-            )  # Column (X)
-            agent_y_world_grid = int(
-                np.clip(start_pos[1] * grid_size, 0, grid_size - 1)
-            )
-            agent_y_grid = grid_size - 1 - agent_y_world_grid  # Row (Y), flipped
-
-            goal_x_grid = int(
-                np.clip(goal_pos[0] * grid_size, 0, grid_size - 1)
-            )  # Column (X)
-            goal_y_world_grid = int(np.clip(goal_pos[1] * grid_size, 0, grid_size - 1))
-            goal_y_grid = grid_size - 1 - goal_y_world_grid  # Row (Y), flipped
-
-            # Store as [agent_idx, row, column] = [agent_idx, y, x]
-            agent_occupancy_grid[idx, agent_y_grid, agent_x_grid] = 1
-            goal_occupancy_grid[idx, goal_y_grid, goal_x_grid] = 1
-
-        cell_size = 1.0 / grid_size  # Size of each cell in world coordinates
-        for i in range(grid_size):
-            for j in range(grid_size):
-                world_x = (j + 0.5) * cell_size  # j is column, maps to x
-                world_y = (grid_size - i - 0.5) * cell_size  # Flip i to get correct y
-                world_coord = np.array([world_x, world_y])
-
-                for obs in self.obstacles:
-                    if obs.check_collision(center=world_coord, radius=cell_size * 0.5):
-                        obstacle_occupancy_grid[0, i, j] = 1
-
-        return {
-            "agent_occupancy": agent_occupancy_grid,
-            "goal_occupancy": goal_occupancy_grid,
-            "obstacle_occupancy": obstacle_occupancy_grid,
-        }
+    def step(self, actions: dict[str, np.ndarray]):
+        if isinstance(actions, dict):
+            processed_actions = [Vector2(x=float(actions.get(a, [0,0])[0]), y=float(actions.get(a, [0,0])[1])) for a in self.agents]
+        else:
+            processed_actions = [Vector2(x=float(a[0]), y=float(a[1])) for a in actions]
+        self.num_steps += 1
+        for _ in range(self.config.repeat_steps):
+            collision_datas, terminations, truncations = self.transition(processed_actions)
+            if any(terminations.values()) or any(truncations.values()): break
+        self._update_group_arrival_bonus()
+        rewards = {aid: self.calculate_reward(self.agents_dict[aid], cd) for aid, cd in zip(self.agents, collision_datas)}
+        for aid, rew in rewards.items():
+            self.agents_dict[aid].last_reward = rew
+            self.pending_group_bonus[aid] = 0.0
+        if self.config.use_shared_goals:
+            for aid, cd in zip(self.agents, collision_datas):
+                ag = self.agents_dict[aid]
+                if ag.goal_reached:
+                    dists = [np.linalg.norm(loc - ag.pos) for loc in self.current_goal_locations]
+                    idx = np.argmin(dists)
+                    if idx not in self.occupied_goals: self.occupied_goals.add(idx)
+        observations = self._get_observations()
+        infos = {aid: {} for aid in self.agents}
+        if self.render_mode == "human": self.render()
+        return observations, rewards, terminations, truncations, infos
 
     def transition(self, actions: list[Vector2]):
-
-        terminations = {}
-        truncations = {}
-        collision_datas: list[CollisionData] = []
-
-        # Apply actions to agents
+        terminations, truncations = {}, {}
         for agent_id, action in zip(self.agents, actions):
-            agent = self.agents_dict[agent_id]
-            target_velocity = Vector2(
-                x=action.x * agent.config.max_speed,
-                y=action.y * agent.config.max_speed,
-            )
-            agent.apply_target_velocity(target_velocity)
-
-        # Update obstacles
-        for obs in self.obstacles:
-            obs.update(DELTA_T)
-
+            self.agents_dict[agent_id].apply_target_velocity(Vector2(x=action.x * self.agents_dict[agent_id].config.max_speed, y=action.y * self.agents_dict[agent_id].config.max_speed))
+        for obs in self.obstacles: obs.update(DELTA_T)
         self._update_switch_gate_state()
         active_obstacles = self._active_obstacles()
-
-        # Update agent positions and check collisions
         collision_datas = []
         for agent_id in self.agents:
             agent = self.agents_dict[agent_id]
             agent.update_pos(DELTA_T)
-
-            # --- Stuck Detection & Recovery ---
-            # Periodically check if agent has moved enough
             if self.num_steps % self.stuck_check_interval == 0:
-                last_pos = self.agent_last_positions[agent_id]
-                dist_moved = np.linalg.norm(agent.pos - last_pos)
-                
-                if dist_moved < self.stuck_min_dist:
-                    # Agent is stuck! Force a random turn (Reverse-ish)
-                    # We want to turn something like 90 to 270 degrees away from current direction
-                    # to force "Reversing" or "Turning Around"
-                    base_angle = np.arctan2(agent.direction[1], agent.direction[0])
-                    # Add 120 to 240 degrees (centered at 180 aka reverse)
-                    turn_angle = np.deg2rad(np.random.uniform(120, 240))
-                    # Randomly flip direction (left or right turn)
-                    if np.random.random() < 0.5:
-                        turn_angle = -turn_angle
-                        
-                    new_angle = base_angle + turn_angle
-                    agent.direction = np.array([np.cos(new_angle), np.sin(new_angle)])
-                    
-                    # Also give a tiny push in new direction to break static friction/obs overlap
-                    # agent.pos += agent.direction * 0.1 
-                    # (Be careful not to push into obstacles, let physics handle next step)
-                
-                # Update last checked position
+                if np.linalg.norm(agent.pos - self.agent_last_positions[agent_id]) < self.stuck_min_dist:
+                    angle = np.arctan2(agent.direction[1], agent.direction[0]) + np.deg2rad(np.random.uniform(120, 240))
+                    agent.direction = np.array([np.cos(angle), np.sin(angle)])
                 self.agent_last_positions[agent_id] = agent.pos.copy()
-
-
-            if self.avoid_collision_checks:
-                continue
-
-            this_agent_collision_data = CollisionData()
-            
-            # What's colliding - boundaries, obstacles, or agents?
-            # We first check IF there is a collision to decide if we need to handle it.
-            # However, we also need to know WHAT we hit for the reward signal (boundary vs obstacle vs agent).
-            
-            # 1. Boundary Check
-            if self.boundary.violating_boundary(agent):
-                this_agent_collision_data.is_colliding = True
-                this_agent_collision_data.colliding_with = "boundary"
-            
-            # 2. Obstacle Check
-            if not this_agent_collision_data.is_colliding:
+            cd = CollisionData()
+            if self.boundary.violating_boundary(agent): cd.is_colliding, cd.colliding_with = True, "boundary"
+            if not cd.is_colliding:
                 for obs in active_obstacles:
                     if obs.check_collision(center=agent.pos, radius=agent.radius):
-                        this_agent_collision_data.is_colliding = True
-                        this_agent_collision_data.colliding_with = "obstacle"
+                        cd.is_colliding, cd.colliding_with = True, "obstacle"
                         break
-            
-            # 3. Agent Check
-            if not this_agent_collision_data.is_colliding:
-                for other_agent_id in self.agents:
-                    if other_agent_id == agent_id:
-                        continue
-                    other_agent = self.agents_dict[other_agent_id]
-                    if np.linalg.norm(other_agent.pos - agent.pos) < (agent.radius + other_agent.radius):
-                        this_agent_collision_data.is_colliding = True
-                        this_agent_collision_data.colliding_with = "agent"
+            if not cd.is_colliding:
+                for oid in self.agents:
+                    if oid != agent_id and np.linalg.norm(self.agents_dict[oid].pos - agent.pos) < (agent.radius + self.agents_dict[oid].radius):
+                        cd.is_colliding, cd.colliding_with = True, "agent"
                         break
-
-            # If any collision occurred, handle physics (Revert + Slide)
-            if this_agent_collision_data.is_colliding:
-                # Store the intended full move
-                intended_pos = agent.pos.copy()
-                delta = intended_pos - agent.old_pos
-                
-                # Revert to safe position
-                agent.pos = agent.old_pos.copy()
-                
-                # Attempt Sliding: Try moving only in X
-                test_pos_x = agent.old_pos + np.array([delta[0], 0])
-                if not self._is_colliding_with_anything(agent, test_pos_x, agent_id):
-                    agent.pos = test_pos_x
-                    # Update direction to match sliding motion for next frame
-                    if np.linalg.norm(delta) > 1e-6:
-                        agent.direction = np.array([np.sign(delta[0]), 0])
-                        agent.direction /= (np.linalg.norm(agent.direction) + 1e-10)
-
-                else:
-                    # Attempt Sliding: Try moving only in Y
-                    test_pos_y = agent.old_pos + np.array([0, delta[1]])
-                    if not self._is_colliding_with_anything(agent, test_pos_y, agent_id):
-                        agent.pos = test_pos_y
-                        # Update direction to match sliding motion for next frame
-                        if np.linalg.norm(delta) > 1e-6:
-                            agent.direction = np.array([0, np.sign(delta[1])])
-                            agent.direction /= (np.linalg.norm(agent.direction) + 1e-10)
-                    else:
-                        # Completely blocked (Corner or straight on)
-                        # Revert implies staying at old_pos.
-                        # Add random noise to direction to help policy explore away next step
-                        angle = np.random.uniform(-np.pi, np.pi)
-                        agent.direction = np.array([np.cos(angle), np.sin(angle)])
-
-            collision_datas.append(this_agent_collision_data)
-
-        self._update_switch_gate_state()
-
-        for agent_id in self.agents:
-            agent = self.agents_dict[agent_id]
-
-            terminations[agent_id] = (not agent.active) or agent.goal_reached
-            truncations[agent_id] = (
-                False if self.num_steps < self.config.max_time else True
-            )
-
-            # a pettingzoo quirk where terminations also need to be truncated
-            terminations[agent_id] = np.bool_(
-                terminations[agent_id] or truncations[agent_id]
-            )
-
+            if cd.is_colliding:
+                safe_pos = agent.old_pos.copy()
+                delta = agent.pos - safe_pos
+                agent.pos = safe_pos
+                for test_delta in [np.array([delta[0], 0]), np.array([0, delta[1]])]:
+                    if not self._is_colliding_with_anything(agent, safe_pos + test_delta, agent_id):
+                        agent.pos = safe_pos + test_delta
+                        if np.linalg.norm(test_delta) > 1e-6:
+                            agent.direction = test_delta / np.linalg.norm(test_delta)
+                        break
+                else: # blocked
+                    ang = np.random.uniform(-np.pi, np.pi)
+                    agent.direction = np.array([np.cos(ang), np.sin(ang)])
+            collision_datas.append(cd)
+        for aid in self.agents:
+            terminations[aid] = np.bool_(self.agents_dict[aid].goal_reached or self.num_steps >= self.config.max_time)
+            truncations[aid] = np.bool_(self.num_steps >= self.config.max_time)
         return collision_datas, terminations, truncations
 
     def _is_colliding_with_anything(self, agent: Agent, pos: np.ndarray, agent_id: str) -> bool:
-        """Check if moving 'agent' to 'pos' would cause any collision."""
-        # Temporarily move agent to check boundary
-        original_pos = agent.pos
+        orig = agent.pos
         agent.pos = pos
-        
-        # 1. Boundary Check
-        if self.boundary.violating_boundary(agent):
-            agent.pos = original_pos
-            return True
-            
-        agent.pos = original_pos # Restore for next checks (though obs check uses coords)
-
-        # 2. Obstacle Check
-        for obs in self._active_obstacles():
-            if obs.check_collision(center=pos, radius=agent.radius):
-                return True
-        
-        # 3. Agent Check
-        for other_id in self.agents:
-            if other_id == agent_id:
-                continue
-            other_agent = self.agents_dict[other_id]
-            if np.linalg.norm(other_agent.pos - pos) < (agent.radius + other_agent.radius):
-                return True
-                
-        return False
-
-    def step(self, actions: dict[str, np.ndarray]):
-        """Execute one step of the environment."""
-        # Handle both dictionary format (original) and vectorized format (after SuperSuit wrapping)
-        if isinstance(actions, dict):
-            # Original PettingZoo format: {"agent_0": [vx, vy]}
-            processed_actions = []
-            for agent_id in self.agents:
-                if agent_id in actions:
-                    action = actions[agent_id]
-                    processed_actions.append(
-                        Vector2(x=float(action[0]), y=float(action[1]))
-                    )
-                else:
-                    processed_actions.append(Vector2(x=0.0, y=0.0))
-        else:
-            processed_actions = [
-                Vector2(x=float(action[0]), y=float(action[1]))
-                for action in actions
-            ]
-
-        self.num_steps += 1
-
-        # Repeat the chosen action for multiple frames
-        # This avoids re-calculation of nearby frames (inspired by Atari DQN)
-        for _ in range(self.config.repeat_steps):
-            collision_datas, terminations, truncations = self.transition(
-                processed_actions
-            )
-
-            if any(terminations.values()):
-                break
-
-            if any(truncations.values()):
-                break
-
-        self._update_group_arrival_bonus()
-
-        # Calculate rewards
-        rewards = {}
-        for agent_id, collision_data in zip(self.agents, collision_datas):
-            agent = self.agents_dict[agent_id]
-            rewards[agent_id] = self.calculate_reward(agent, collision_data)
-            if collision_data.is_colliding:
-                self.num_dead_agents += 1
-
-        for agent_id in self.agents_dict.keys():
-            agent = self.agents_dict[agent_id]
-            if agent_id in rewards:
-                agent.last_reward = rewards[agent_id]
-            self.pending_group_bonus[agent_id] = 0.0
-        # Handle shared goal acquisition
-        if self.config.use_shared_goals:
-            for agent_id, collision_data in zip(self.agents, collision_datas):
-                agent = self.agents_dict[agent_id]
-                if agent.goal_reached:
-                    # Mark nearest goal in pool as occupied
-                    distances = [np.linalg.norm(loc - agent.pos) for loc in self.current_goal_locations]
-                    nearest_idx = np.argmin(distances)
-                    if nearest_idx not in self.occupied_goals:
-                        self.occupied_goals.add(nearest_idx)
-
-        # Get next observations
-
-        # Auto-render if render mode is set to human
-        if self.render_mode == "human":
-            self.render()
-
-        return observations, rewards, terminations, truncations, infos
+        coll = self.boundary.violating_boundary(agent)
+        if not coll:
+            for obs in self._active_obstacles():
+                if obs.check_collision(center=pos, radius=agent.radius): coll = True; break
+        if not coll:
+            for oid in self.agents:
+                if oid != agent_id and np.linalg.norm(self.agents_dict[oid].pos - pos) < (agent.radius + self.agents_dict[oid].radius): coll = True; break
+        agent.pos = orig
+        return coll
 
     def close(self):
-        """Close the environment."""
-        if self.window is not None:
-            self.window.on_close()
-            self.window.close()
-            self.window = None
+        if self.window: self.window.close(); self.window = None
 
     def render(self):
-        render_state = self.get_render_state()
-        if self.render_mode == "human" or self.render_mode == "rgb_array":
-            self.window.render(render_state)
-            return self.window.get_rgb_array()
-        else:
-            return render_state
+        state = self.get_render_state()
+        if self.render_mode in ["human", "rgb_array"]: return self.window.render(state)
 
-    def process_lidar_observation(
-        self, max_range, lidar_observation: list[RayIntersectionOutput]
-    ):
+    def process_lidar_observation(self, max_range, lidar_observation):
         rays = np.zeros((3, len(lidar_observation)))
-        for i in range(len(lidar_observation)):
-            ray_data = lidar_observation[i]
-            if not ray_data.intersects:
-                continue
-
-            if ray_data.intersecting_with == "obstacle":
-                rays[0, i] = max_range - ray_data.t
-            elif ray_data.intersecting_with == "boundary":
-                rays[1, i] = max_range - ray_data.t
-            elif ray_data.intersecting_with == "agent":
-                rays[2, i] = max_range - ray_data.t
-
+        for i, ray in enumerate(lidar_observation):
+            if ray.intersects:
+                ch = 0 if ray.intersecting_with == "obstacle" else (1 if ray.intersecting_with == "boundary" else 2)
+                rays[ch, i] = max_range - ray.t
         return rays
 
     def get_lidar_observation(self):
-        all_rays = []
-        goals = []
-        rays_per_agent = []
+        all_rays, goals, rpa = [], [], []
+        for aid in self.agents:
+            ag = self.agents_dict[aid]
+            all_rays.extend(create_lidar_rays(ag.pos, ag.direction, self.config.num_rays, ag.config.max_range, ag.config.fov_degrees))
+            goals.append(Circle(center=Vector2(x=ag.goal_pos[0], y=ag.goal_pos[1]), radius=self.config.goal_threshold))
+            rpa.append(self.config.num_rays)
+        res = batch_ray_intersection_detailed(np.array(all_rays), self._active_obstacles(), [self.config.boundary], goals=goals, agents=[Circle(center=Vector2(x=self.agents_dict[a].pos[0], y=self.agents_dict[a].pos[1]), radius=self.agents_dict[a].radius) for a in self.agents], rays_per_agent=rpa)
+        return np.reshape(res, (len(self.agents), self.config.num_rays))
 
-        for agent_id in self.agents:
-            agent = self.agents_dict[agent_id]
-            rays = create_lidar_rays(
-                agent.pos,
-                agent.direction,
-                self.config.num_rays,
-                agent.config.max_range,
-                agent.config.fov_degrees,
-            )
-            all_rays.extend(rays)
-
-            goals.append(
-                Circle(
-                    center=Vector2(x=agent.goal_pos[0], y=agent.goal_pos[1]),
-                    radius=self.config.goal_threshold,
-                )
-            )
-            rays_per_agent.append(self.config.num_rays)
-
-        if not all_rays:
-            return []
-
-        all_rays = np.array(all_rays)
-        result = batch_ray_intersection_detailed(
-            all_rays,
-            self._active_obstacles(),
-            [self.config.boundary],
-            goals=goals,
-            agents=[
-                Circle(
-                    center=Vector2(
-                        x=self.agents_dict[agent].pos[0],
-                        y=self.agents_dict[agent].pos[1],
-                    ),
-                    radius=self.agents_dict[agent].radius,
-                )
-                for agent in self.agents
-            ],
-            rays_per_agent=rays_per_agent,
-        )
-
-        result = np.reshape(result, (len(self.agents), self.config.num_rays))
-
-        return result
-
-    def get_render_state(self) -> RenderState:
-        agent_states = []
-        for agent_id in self.agents:
-            agent = self.agents_dict[agent_id]
-            agent_states.append(
-                AgentState(
-                    position=(agent.pos[0], agent.pos[1]),
-                    radius=agent.radius,
-                    color=agent.config.agent_col,
-                    velocity=(
-                        agent.current_speed * agent.direction[0],
-                        agent.current_speed * agent.direction[1],
-                    ),
-                    direction=(agent.direction[0], agent.direction[1]),
-                    lidar_observation=agent.last_raw_lidar_observation,
-                    fov_degrees=agent.config.fov_degrees,
-                    max_range=agent.config.max_range,
-                    goals=Circle(
-                        center=Vector2(x=agent.goal_pos[0], y=agent.goal_pos[1]),
-                        radius=self.config.goal_threshold,
-                    ),
-                    goal_reached=agent.goal_reached,
-                    last_reward=agent.last_reward,
-                )
-            )
-
-        obstacle_states = []
-        for obs in self._active_obstacles():
-            obstacle_states.append(obs.get_current_state())
-
-        boundary_state = BoundaryState(
-            vertices=[(v[0], v[1]) for v in self.boundary.vertices]
-        )
-        
-        # Everything live_renderer needs to display the current frame
-        return RenderState(
-            agents=agent_states,
-            obstacles=obstacle_states,
-            boundary=boundary_state,
-            switches=[
-                SwitchState(
-                    center=(switch.zone.center.x, switch.zone.center.y),
-                    width=switch.zone.width,
-                    height=switch.zone.height,
-                    rotation=switch.zone.rotation,
-                    color=switch.color,
-                    active=idx in self.active_switches,
-                )
-                for idx, switch in enumerate(self.switches)
-            ],
-        )
-
+    def get_render_state(self):
+        agents = [AgentState(position=(a.pos[0], a.pos[1]), radius=a.radius, color=a.config.agent_col, velocity=(a.current_speed*a.direction[0], a.current_speed*a.direction[1]), direction=(a.direction[0], a.direction[1]), lidar_observation=a.last_raw_lidar_observation, fov_degrees=a.config.fov_degrees, max_range=a.config.max_range, goals=Circle(center=Vector2(x=a.goal_pos[0], y=a.goal_pos[1]), radius=self.config.goal_threshold), goal_reached=a.goal_reached, last_reward=a.last_reward) for a in self.agents_dict.values()]
+        return RenderState(agents=agents, obstacles=[o.get_current_state() for o in self._active_obstacles()], boundary=BoundaryState(vertices=[(v[0], v[1]) for v in self.boundary.vertices]), switches=[SwitchState(center=(s.zone.center.x, s.zone.center.y), width=s.zone.width, height=s.zone.height, rotation=s.zone.rotation, color=s.color, active=i in self.active_switches) for i, s in enumerate(self.switches)])
