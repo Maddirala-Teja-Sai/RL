@@ -73,6 +73,11 @@ def parse_args():
         help="Temporal history length for MAPPO's LiDAR encoder",
     )
     parser.add_argument(
+        "--force-cpu",
+        action="store_true",
+        help="Force use of CPU even if CUDA is available",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="Resume training from the latest checkpoint in the model directory",
@@ -137,14 +142,6 @@ def main():
     config = load_config(args.config)
     env = create_env(config)
     n_agents = env.n_agents
-
-    # Setup directories
-    model_dir = os.path.join("models", args.model_id)
-    video_dir = os.path.join("videos", args.model_id)
-    os.makedirs(model_dir, exist_ok=True)
-    os.makedirs(video_dir, exist_ok=True)
-    os.makedirs("logs", exist_ok=True)
-
     # Copy config to model directory for reference
     shutil.copy2(args.config, os.path.join(model_dir, "env.yaml"))
 
@@ -164,6 +161,13 @@ def main():
             ),
         }, f)
 
+    # Device selection
+    import torch
+    from algorithms.base import set_device
+    device_obj = torch.device("cuda" if torch.cuda.is_available() and not args.force_cpu else "cpu")
+    set_device(device_obj)
+    print(f"  Training on: {device_obj.type.upper()}")
+    
     # Create algorithm
     AlgoClass = get_algorithm(args.algo)
 

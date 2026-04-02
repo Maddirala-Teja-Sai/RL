@@ -228,19 +228,22 @@ class MAPPO(BaseAlgorithm):
             for ema_buffer, buffer in zip(self.ema_actor.buffers(), self.actor.buffers()):
                 ema_buffer.copy_(buffer)
 
-    def learn(self, total_timesteps: int):
+    def learn(self, total_timesteps: int, start_step: int = 0):
         writer = SummaryWriter(log_dir=f"logs/{os.path.basename(self.model_dir)}")
         num_updates = max(1, total_timesteps // (self.n_steps * self.n_agents))
+        start_update = (start_step // (self.n_steps * self.n_agents)) + 1
         best_reward = -float("inf")
-        global_step = 0
-
+        
         print(f"Training MAPPO for {total_timesteps} timesteps ({num_updates} updates)")
+        print(f"  Starting from step {start_step} (Update {start_update})")
         print(
             f"  n_agents={self.n_agents}, history_length={self.history_length}, "
             f"obs_mode={self.obs_mode}"
         )
 
-        for update in range(1, num_updates + 1):
+        global_step = start_step
+
+        for update in range(start_update, num_updates + 1):
             self.buffer.reset()
             episode_rewards = []
 
@@ -388,6 +391,25 @@ class MAPPO(BaseAlgorithm):
         with torch.no_grad():
             action, _ = self.actor.get_action(obs_tensor, deterministic=deterministic)
         return action.cpu().numpy()
+
+    def load_checkpoint(self, path: str):
+        """Load model and optimizer state from checkpoint."""
+        checkpoint = torch.load(path, map_location=device)
+        self.actor.load_state_dict(checkpoint["actor"])
+        self.critic.load_state_dict(checkpoint["critic"])
+        if self.ema_actor is not None and checkpoint.get("ema_actor") is not None:
+            self.ema_actor.load_state_dict(checkpoint["ema_actor"])
+        if "optimizer" in checkpoint:
+            self.optimizer.load_state_dict(checkpoint["optimizer"])
+        
+        # Return the step number from the filename if possible
+        try:
+            filename = os.path.basename(path)
+            if "step_" in filename:
+                return int(filename.split("_")[-1].split(".")[0])
+        except Exception:
+            pass
+        return 0
 
     def save_model(self, path=None):
         if path is None:
