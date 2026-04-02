@@ -189,26 +189,36 @@ def main():
         history_length=args.history_length,
     )
 
-    # Resume if requested
+    # Resume or Checkpoint Loading
     start_step = 0
     if args.resume or args.checkpoint:
         checkpoint_path = args.checkpoint
         if not checkpoint_path and args.resume:
+            # First, check for the specific 'checkpoints' folder
             checkpoint_dir = os.path.join(model_dir, "checkpoints")
             if os.path.exists(checkpoint_dir):
-                checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
-                if checkpoints:
-                    checkpoints.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
-                    checkpoint_path = os.path.join(checkpoint_dir, checkpoints[-1])
+                files = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
+                if files:
+                    # Sort files by step number: model_step_500000.pth
+                    files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
+                    checkpoint_path = os.path.join(checkpoint_dir, files[-1])
+            
+            # If no checkpoints, try the best model
             if not checkpoint_path:
                 best_path = os.path.join(model_dir, "best_model", "model.pth")
-                if os.path.exists(best_path): checkpoint_path = best_path
-
+                if os.path.exists(best_path):
+                    checkpoint_path = best_path
+                
         if checkpoint_path and os.path.exists(checkpoint_path):
-            print(f"Resuming from checkpoint: {checkpoint_path}")
+            print(f"\n🔄 RESUMING FROM CHECKPOINT: {checkpoint_path}")
             start_step = learner.load_checkpoint(checkpoint_path)
+            print(f"📈 Resuming from Step: {start_step:,}")
+        else:
+            print("\n⚠️ No valid checkpoint found. Starting training from scratch (Step 0).")
 
     # Train
+    # Note: args.timesteps is the TARGET TOTAL step. 
+    # If start_step=5M and args.timesteps=10M, it will train for 5M more.
     learner.learn(total_timesteps=args.timesteps, start_step=start_step)
 
     # Final Verification
