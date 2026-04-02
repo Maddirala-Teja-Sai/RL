@@ -288,13 +288,22 @@ class Environment(pettingzoo.ParallelEnv):
         half_h = rect.height / 2 + margin
         return (abs(pos[0] - rect.center.x) <= half_w and abs(pos[1] - rect.center.y) <= half_h)
 
-    def _agent_in_rectangle(self, agent: Agent, rect: Rectangle) -> bool:
+    def _agent_in_circle(self, agent, circle) -> bool:
+        dist = np.linalg.norm(agent.pos - circle.center.to_numpy())
+        return dist <= (circle.radius + agent.radius * 0.5)
+
+    def _agent_in_rectangle(self, agent, rect: Rectangle) -> bool:
         return self._point_in_rectangle(agent.pos, rect, margin=agent.radius * 0.5)
+
+    def _agent_in_zone(self, agent, zone) -> bool:
+        if hasattr(zone, 'type') and zone.type == "circle":
+            return self._agent_in_circle(agent, zone)
+        return self._agent_in_rectangle(agent, zone)
 
     def _update_switch_gate_state(self):
         active_switches = set()
         for idx, switch in enumerate(self.switches):
-            if any(self._agent_in_rectangle(agent, switch.zone) for agent in self.agents_dict.values()):
+            if any(self._agent_in_zone(agent, switch.zone) for agent in self.agents_dict.values()):
                 active_switches.add(idx)
 
         previous_mask = list(self.gate_open_mask)
@@ -373,7 +382,7 @@ class Environment(pettingzoo.ParallelEnv):
             agent = self.agents_dict[agent_id]
             state_dict = agent.get_state_dict()
             switch_features = np.array([
-                float(any(self._agent_in_rectangle(agent, switch.zone) for switch in self.switches)),
+                float(any(self._agent_in_zone(agent, switch.zone) for switch in self.switches)),
                 len(self.active_switches) / max(1, len(self.switches)) if self.switches else 0.0,
                 float(any(self.gate_open_mask)),
             ], dtype=np.float32)
@@ -404,7 +413,7 @@ class Environment(pettingzoo.ParallelEnv):
         scale_goal_reward_with_speed = goal_reward * (agent.current_speed / agent.config.max_speed)
         reward = scale_goal_reward_with_speed * 0.25 - 0.05
         for idx, switch in enumerate(self.switches):
-            if idx in self.active_switches and self._agent_in_rectangle(agent, switch.zone):
+            if idx in self.active_switches and self._agent_in_zone(agent, switch.zone):
                 reward += switch.reward
         if self.gate_just_opened:
             reward += 2.0
@@ -435,9 +444,23 @@ class Environment(pettingzoo.ParallelEnv):
         else:
             processed_actions = [Vector2(x=float(a[0]), y=float(a[1])) for a in actions]
         self.num_steps += 1
+        
+        collision_datas = []
+        terminations = {}
+        truncations = {}
+        
         for _ in range(self.config.repeat_steps):
             collision_datas, terminations, truncations = self.transition(processed_actions)
-            if any(terminations.values()) or any(truncations.values()): break
+            
+            # Strategy: any (Episode ends if one finishes)
+            if self.config.terminal_strategy == "any":
+                if any(terminations.values()) or any(truncations.values()):
+                    break
+            # Strategy: all/individual (Episode ends ONLY if ALL finish)
+            else:
+                if all(terminations.values()) or all(truncations.values()):
+                    break
+                    
         self._update_group_arrival_bonus()
         rewards = {aid: self.calculate_reward(self.agents_dict[aid], cd) for aid, cd in zip(self.agents, collision_datas)}
         for aid, rew in rewards.items():
@@ -498,8 +521,20 @@ class Environment(pettingzoo.ParallelEnv):
                     agent.direction = np.array([np.cos(ang), np.sin(ang)])
             collision_datas.append(cd)
         for aid in self.agents:
-            terminations[aid] = np.bool_(self.agents_dict[aid].goal_reached or self.num_steps >= self.config.max_time)
-            truncations[aid] = np.bool_(self.num_steps >= self.config.max_time)
+            agent = self.agents_dict[aid]
+            # Termination: Goal reached or Max Time
+            # In 'all' or 'individual' strategy, we only mark individual agents as terminated.
+            is_terminated = agent.goal_reached or self.num_steps >= self.config.max_time
+            is_truncated = self.num_steps >= self.config.max_time
+            
+            terminations[aid] = np.bool_(is_terminated)
+            truncations[aid] = np.bool_(is_truncated)
+            
+            # If agent has finished, it stays finished
+            if is_terminated:
+                agent.active = False
+                agent.goal_reached = True
+
         return collision_datas, terminations, truncations
 
     def _is_colliding_with_anything(self, agent: Agent, pos: np.ndarray, agent_id: str) -> bool:

@@ -47,11 +47,11 @@ obstacles:
   - shape: { type: rectangle, center: { x: 0.4, y: 0.5 }, width: 0.02, height: 1.0 }
 
 switches:
-  - zone: { center: { x: 0.1, y: 0.1 }, width: 0.08, height: 0.08 }
+  - zone: { type: rectangle, center: { x: 0.1, y: 0.1 }, width: 0.08, height: 0.08 }
     reward: 0.5
-  - zone: { center: { x: 0.1, y: 0.5 }, width: 0.08, height: 0.08 }
+  - zone: { type: rectangle, center: { x: 0.1, y: 0.5 }, width: 0.08, height: 0.08 }
     reward: 0.5
-  - zone: { center: { x: 0.1, y: 0.9 }, width: 0.08, height: 0.08 }
+  - zone: { type: rectangle, center: { x: 0.1, y: 0.9 }, width: 0.08, height: 0.08 }
     reward: 0.5
 
 gates:

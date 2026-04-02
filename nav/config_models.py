@@ -68,7 +68,7 @@ class PolygonBoundaryConfig(BaseModel):
 
 
 class SwitchConfig(BaseModel):
-    zone: Rectangle
+    zone: Union[Rectangle, Circle]
     reward: float = 0.25
     color: str = "cyan"
 
@@ -94,3 +94,4 @@ class EnvConfig(BaseModel):
     simultaneous_arrival_window: int = 0
     formation_reward_weight: float = 0.0
     use_shared_goals: bool = False
+    terminal_strategy: Literal["any", "all", "individual"] = "any"
