@@ -1,0 +1,58 @@
+# MARL Shared 3 Agents - Static Easy
+num_rays: 120
+goal_threshold: 0.05
+num_agents_per_group: 1
+terminal_strategy: all_good
+
+boundary:
+  type: polygon
+  vertices:
+    - { x: 0.1, y: 0.1 }
+    - { x: 0.9, y: 0.1 }
+    - { x: 0.9, y: 0.9 }
+    - { x: 0.1, y: 0.9 }
+
+agents:
+  - start_pos: { center: { x: 0.2, y: 0.2 }, width: 0.15, height: 0.15 }
+    goal_pos: { center: { x: 0.8, y: 0.8 }, width: 0.05, height: 0.05 }
+    radius: 0.015
+    max_speed: 0.2
+    fov_degrees: 360
+    max_range: 0.3
+    agent_col: red
+
+  - start_pos: { center: { x: 0.2, y: 0.2 }, width: 0.15, height: 0.15 }
+    goal_pos: { center: { x: 0.8, y: 0.8 }, width: 0.05, height: 0.05 }
+    radius: 0.015
+    max_speed: 0.2
+    fov_degrees: 360
+    max_range: 0.3
+    agent_col: blue
+
+  - start_pos: { center: { x: 0.2, y: 0.2 }, width: 0.15, height: 0.15 }
+    goal_pos: { center: { x: 0.8, y: 0.8 }, width: 0.05, height: 0.05 }
+    radius: 0.015
+    max_speed: 0.2
+    fov_degrees: 360
+    max_range: 0.3
+    agent_col: green
+
+obstacles:
+  # Very simple static obstacles, far from the center path
+  - shape:
+      type: circle
+      center: { x: 0.3, y: 0.7 }
+      radius: 0.05
+  - shape:
+      type: circle
+      center: { x: 0.7, y: 0.3 }
+      radius: 0.05
+  # Blocking rectangle with gaps
+  - shape:
+      type: rectangle
+      center: { x: 0.5, y: 0.5 }
+      width: 0.1
+      height: 0.25
+      rotation: 135
+
+max_time: 500

@@ -1,0 +1,63 @@
+# 9-agent switch-and-gate environment (Advanced).
+# Forces teamwork: 3 agents must hold switches to keep the corridors open.
+num_rays: 60
+goal_threshold: 0.02
+repeat_steps: 2
+num_agents_per_group: 3
+max_time: 1200
+formation_reward_weight: 0.05
+use_shared_goals: false
+
+boundary:
+  type: polygon
+  vertices:
+    - { x: 0.0, y: 0.0 }
+    - { x: 1.0, y: 0.0 }
+    - { x: 1.0, y: 1.0 }
+    - { x: 0.0, y: 1.0 }
+
+agents:
+  - start_pos: { center: { x: 0.15, y: 0.2 }, width: 0.1, height: 0.1 }
+    goal_pos: { center: { x: 0.85, y: 0.2 }, width: 0.1, height: 0.1 }
+    radius: 0.015
+    max_speed: 0.2
+    fov_degrees: 360
+    max_range: 0.4
+    agent_col: red
+  - start_pos: { center: { x: 0.15, y: 0.5 }, width: 0.1, height: 0.1 }
+    goal_pos: { center: { x: 0.85, y: 0.5 }, width: 0.1, height: 0.1 }
+    radius: 0.015
+    max_speed: 0.2
+    fov_degrees: 360
+    max_range: 0.4
+    agent_col: blue
+  - start_pos: { center: { x: 0.15, y: 0.8 }, width: 0.1, height: 0.1 }
+    goal_pos: { center: { x: 0.85, y: 0.8 }, width: 0.1, height: 0.1 }
+    radius: 0.015
+    max_speed: 0.2
+    fov_degrees: 360
+    max_range: 0.4
+    agent_col: green
+
+obstacles:
+  # Dividing walls
+  - shape: { type: rectangle, center: { x: 0.5, y: 0.35 }, width: 0.6, height: 0.02 }
+  - shape: { type: rectangle, center: { x: 0.5, y: 0.65 }, width: 0.6, height: 0.02 }
+  # Vertical barrier
+  - shape: { type: rectangle, center: { x: 0.4, y: 0.5 }, width: 0.02, height: 1.0 }
+
+switches:
+  - zone: { center: { x: 0.1, y: 0.1 }, width: 0.08, height: 0.08 }
+    reward: 0.5
+  - zone: { center: { x: 0.1, y: 0.5 }, width: 0.08, height: 0.08 }
+    reward: 0.5
+  - zone: { center: { x: 0.1, y: 0.9 }, width: 0.08, height: 0.08 }
+    reward: 0.5
+
+gates:
+  - shape: { center: { x: 0.4, y: 0.2 }, width: 0.03, height: 0.15 }
+    opens_when_active_switches: 1
+  - shape: { center: { x: 0.4, y: 0.5 }, width: 0.03, height: 0.15 }
+    opens_when_active_switches: 2
+  - shape: { center: { x: 0.4, y: 0.8 }, width: 0.03, height: 0.15 }
+    opens_when_active_switches: 3

@@ -1,0 +1,15 @@
+============================================================
+MADRL Navigation Training
+============================================================
+  Algorithm:   maddpg
+  Config:      configs\marl_switch_gate_9agent.yaml
+  Obs Mode:    lidar
+  Model ID:    local_maddpg_switch_gate_2m
+  Timesteps:   2,000,000
+  Agents:      8
+  EMA Decay:   0.0
+  History:     4
+============================================================
+No checkpoint found to resume from. Starting from scratch.
+Training MADDPG for 2000000 timesteps
+  n_agents=9, obs_mode=lidar

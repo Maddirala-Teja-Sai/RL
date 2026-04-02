@@ -1,0 +1,18 @@
+C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\.venv2\lib\site-packages\gymnasium\spaces\box.py:236: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\.venv2\lib\site-packages\gymnasium\spaces\box.py:306: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
+Traceback (most recent call last):
+  File "C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\train.py", line 224, in <module>
+    main()
+  File "C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\train.py", line 218, in main
+    learner.learn(total_timesteps=args.timesteps, start_step=start_step)
+  File "C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\algorithms\maddpg\maddpg.py", line 115, in learn
+    next_obs_dict, rewards_dict, terms, truncs, _ = self.env.step(action_dict)
+  File "C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\nav\environment.py", line 773, in step
+    collision_datas, terminations, truncations = self.transition(
+  File "C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\nav\environment.py", line 651, in transition
+    if obs.check_collision(center=agent.pos, radius=agent.radius):
+  File "C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\nav\obstacles.py", line 139, in check_collision
+    u = np.maximum(np.abs(v) - np.array([half_width, half_height]), 0)
+KeyboardInterrupt

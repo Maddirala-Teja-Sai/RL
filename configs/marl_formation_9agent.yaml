@@ -1,0 +1,37 @@
+# 9-agent Formation environment.
+# 3 sub-teams (Red, Blue, Green) are rewarded for staying in formation.
+num_rays: 60
+goal_threshold: 0.02
+repeat_steps: 2
+num_agents_per_group: 3
+max_time: 1200
+formation_reward_weight: 0.08
+simultaneous_arrival_bonus: 50.0
+simultaneous_arrival_window: 25
+
+boundary:
+  type: polygon
+  vertices:
+    - { x: 0.0, y: 0.0 }
+    - { x: 1.0, y: 0.0 }
+    - { x: 1.0, y: 1.0 }
+    - { x: 0.0, y: 1.0 }
+
+agents:
+  # Team RED
+  - start_pos: { center: { x: 0.1, y: 0.2 }, width: 0.1, height: 0.1 }
+    goal_pos: { center: { x: 0.9, y: 0.2 }, width: 0.1, height: 0.1 }
+    agent_col: red
+  # Team BLUE
+  - start_pos: { center: { x: 0.1, y: 0.5 }, width: 0.1, height: 0.1 }
+    goal_pos: { center: { x: 0.9, y: 0.5 }, width: 0.1, height: 0.1 }
+    agent_col: blue
+  # Team GREEN
+  - start_pos: { center: { x: 0.1, y: 0.8 }, width: 0.1, height: 0.1 }
+    goal_pos: { center: { x: 0.9, y: 0.8 }, width: 0.1, height: 0.1 }
+    agent_col: green
+
+obstacles:
+  # Moving obstacles to disrupt formation
+  - shape: { type: circle, center: { x: 0.5, y: 0.5 }, radius: 0.06 }
+    schedule: { speed: 0.15, direction: { x: 0, y: 1 }, boundary_x_min: 0.2, boundary_x_max: 0.8 }

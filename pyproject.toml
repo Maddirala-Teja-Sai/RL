@@ -1,0 +1,23 @@
+[project]
+name = "madrl-navigation"
+version = "0.1.0"
+description = "Multi-Agent Deep Reinforcement Learning Navigation"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "arcade>=3.3.2",
+    "gym>=0.26.2",
+    "gymnasium>=0.29.0",
+    "imageio[ffmpeg]>=2.37.0",
+    "matplotlib>=3.10.3",
+    "moviepy>=2.2.1",
+    "numpy>=1.24.0",
+    "pettingzoo>=1.25.0",
+    "pydantic>=2.11.7",
+    "pyyaml>=6.0.2",
+    "supersuit>=3.10.0",
+    "tensorboard>=2.19.0",
+    "torch>=2.7.1",
+    "torchvision>=0.22.1",
+    "rich>=13.0.0",
+]

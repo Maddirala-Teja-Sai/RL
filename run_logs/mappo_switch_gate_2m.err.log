@@ -1,0 +1,4 @@
+C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\.venv2\lib\site-packages\gymnasium\spaces\box.py:236: UserWarning: [33mWARN: Box low's precision lowered by casting to float32, current low.dtype=float64[0m
+  gym.logger.warn(
+C:\Users\Home\OneDrive\Documents\RL-Project\RL-1\.venv2\lib\site-packages\gymnasium\spaces\box.py:306: UserWarning: [33mWARN: Box high's precision lowered by casting to float32, current high.dtype=float64[0m
+  gym.logger.warn(
