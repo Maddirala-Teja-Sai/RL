@@ -1,0 +1,142 @@
+# BIG Environment: Mathematically zoomed out within 0..1 limits, as a horizontal corridor
+num_rays: 120
+goal_threshold: 0.01  # Reduced because agents are smaller
+num_agents_per_group: 1
+terminal_strategy: individual
+
+boundary:
+  type: polygon
+  vertices: # Expanded to create a full large room filling the window
+    - { x: 0.05, y: 0.05 }
+    - { x: 0.95, y: 0.05 }
+    - { x: 0.95, y: 0.95 }
+    - { x: 0.05, y: 0.95 }
+
+switches:
+  - center: { x: 0.15, y: 0.40 }
+    radius: 0.03
+    color: "white"
+  - center: { x: 0.15, y: 0.70 }
+    radius: 0.03
+    color: "white"
+
+agents:
+  - start_pos: { center: { x: 0.10, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.76, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: red
+
+  - start_pos: { center: { x: 0.12, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.78, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: blue
+
+  - start_pos: { center: { x: 0.14, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.80, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: green
+
+  - start_pos: { center: { x: 0.16, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.82, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: yellow
+
+  - start_pos: { center: { x: 0.18, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.84, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: cyan
+
+  - start_pos: { center: { x: 0.20, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.86, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: magenta
+
+  - start_pos: { center: { x: 0.22, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.88, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: orange
+
+  - start_pos: { center: { x: 0.24, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.90, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: purple
+
+  - start_pos: { center: { x: 0.26, y: 0.15 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.92, y: 0.94 }, width: 0.01, height: 0.01 }
+    radius: 0.0075
+    max_speed: 0.1
+    fov_degrees: 360
+    max_range: 0.15
+    agent_col: pink
+
+obstacles:
+  # Static vertical walls forming a central gap
+  - shape:
+      type: rectangle
+      center: { x: 0.5, y: 0.2 }
+      width: 0.04
+      height: 0.3
+  - shape:
+      type: rectangle
+      center: { x: 0.5, y: 0.8 }
+      width: 0.04
+      height: 0.3
+
+  # A moving platform sliding horizontally to block the gap dynamically
+  - shape:
+      type: rectangle
+      center: { x: 0.5, y: 0.5 }
+      width: 0.05
+      height: 0.15
+    is_gate: true
+    schedule:
+      speed: 0.15
+      direction: { x: 1, y: 0 } 
+      angular_speed: 0
+      boundary_x_min: 0.25
+      boundary_x_max: 0.75
+
+  # Left-side spinning block (requires agents to time their entry)
+  - shape:
+      type: rectangle
+      center: { x: 0.3, y: 0.5 }
+      width: 0.08
+      height: 0.08
+    schedule:
+      angular_speed: 60
+
+  # Right-side static circles
+  - shape:
+      type: circle
+      center: { x: 0.7, y: 0.35 }
+      radius: 0.05
+  - shape:
+      type: circle
+      center: { x: 0.7, y: 0.65 }
+      radius: 0.05
+
+max_time: 1000

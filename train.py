@@ -1,12 +1,11 @@
 """Unified training script for MADRL Navigation.
 
-Supports: MAPPO, MADDPG, Double DQN, Multimodal DRL
+Supports: MAPPO, MADDPG
 Observation modes: lidar, vision, bilinear
 Environments: marl_static, marl_moving, marl_mixed
 
 Usage:
-    uv run train.py --algo mappo --config configs/marl_static.yaml --obs-mode lidar --model-id my_model
-    uv run train.py --algo ddqn --config configs/marl_moving.yaml --obs-mode vision --model-id test 10000
+    python train.py --algo mappo --config configs/marl_static.yaml --model-id my_model --timesteps 2000000
 """
 
 import argparse
@@ -14,6 +13,7 @@ import os
 import shutil
 import yaml
 import numpy as np
+import torch
 
 from nav.environment import Environment
 from nav.config_models import EnvConfig
@@ -25,7 +25,7 @@ def parse_args():
         "--algo",
         type=str,
         required=True,
-        choices=["mappo", "maddpg", "ddqn", "multimodal"],
+        choices=["mappo", "maddpg"],
         help="Algorithm to train with",
     )
     parser.add_argument(
@@ -48,11 +48,10 @@ def parse_args():
         help="Unique model identifier for saving",
     )
     parser.add_argument(
-        "timesteps",
+        "--timesteps",
         type=int,
-        nargs="?",
-        default=100_000,
-        help="Total training timesteps (default: 100000)",
+        default=2_000_000,
+        help="Total training timesteps (default: 2000000)",
     )
     parser.add_argument(
         "--n-agents",
@@ -112,12 +111,6 @@ def get_algorithm(algo_name):
     elif algo_name == "maddpg":
         from algorithms.maddpg import MADDPG
         return MADDPG
-    elif algo_name == "ddqn":
-        from algorithms.ddqn import DoubleDQN
-        return DoubleDQN
-    elif algo_name == "multimodal":
-        from algorithms.multimodal import MultimodalDRL
-        return MultimodalDRL
     else:
         raise ValueError(f"Unknown algorithm: {algo_name}")
 
@@ -125,10 +118,17 @@ def get_algorithm(algo_name):
 def main():
     args = parse_args()
 
-    # Create directories first to avoid NameError
-    model_dir = os.path.join("models", args.model_id)
-    video_dir = os.path.join("videos", args.model_id)
+    # Paths
+    # We use absolute paths to prevent any "missing file" issues in Colab
+    cwd = os.getcwd()
+    model_dir = os.path.join(cwd, "models", args.model_id)
+    video_dir = os.path.join(cwd, "videos", args.model_id)
+    log_dir = os.path.join(cwd, "logs", args.model_id)
+
+    # Ensure directories exist
     os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(os.path.join(model_dir, "best_model"), exist_ok=True)
+    os.makedirs(os.path.join(model_dir, "checkpoints"), exist_ok=True)
     os.makedirs(video_dir, exist_ok=True)
     os.makedirs("logs", exist_ok=True)
 
@@ -140,18 +140,15 @@ def main():
     print(f"  Obs Mode:    {args.obs_mode}")
     print(f"  Model ID:    {args.model_id}")
     print(f"  Timesteps:   {args.timesteps:,}")
-    print(f"  Agents:      {args.n_agents}")
     print(f"  EMA Decay:   {args.ema_decay}")
     print(f"  History:     {args.history_length}")
+    print(f"  Save Dir:    {model_dir}")
     print("=" * 60)
 
     # Load config and create environment
     config = load_config(args.config)
     env = create_env(config)
     n_agents = env.n_agents
-    
-    # Update args.n_agents for display
-    args.n_agents = n_agents
 
     # Copy config to model directory for reference
     shutil.copy2(args.config, os.path.join(model_dir, "env.yaml"))
@@ -173,7 +170,6 @@ def main():
         }, f)
 
     # Device selection
-    import torch
     from algorithms.base import set_device
     device_obj = torch.device("cuda" if torch.cuda.is_available() and not args.force_cpu else "cpu")
     set_device(device_obj)
@@ -182,57 +178,48 @@ def main():
     # Create algorithm
     AlgoClass = get_algorithm(args.algo)
 
-    if args.algo == "multimodal":
-        learner = AlgoClass(
-            env=env,
-            eval_config=config,
-            n_agents=n_agents,
-            model_dir=model_dir,
-            video_dir=video_dir,
-        )
-    else:
-        learner = AlgoClass(
-            env=env,
-            eval_config=config,
-            n_agents=n_agents,
-            model_dir=model_dir,
-            video_dir=video_dir,
-            obs_mode=args.obs_mode,
-            ema_decay=args.ema_decay,
-            history_length=args.history_length,
-        )
+    learner = AlgoClass(
+        env=env,
+        eval_config=config,
+        n_agents=n_agents,
+        model_dir=model_dir,
+        video_dir=video_dir,
+        obs_mode=args.obs_mode,
+        ema_decay=args.ema_decay,
+        history_length=args.history_length,
+    )
 
     # Resume if requested
     start_step = 0
     if args.resume or args.checkpoint:
         checkpoint_path = args.checkpoint
         if not checkpoint_path and args.resume:
-            # Find latest checkpoint
             checkpoint_dir = os.path.join(model_dir, "checkpoints")
             if os.path.exists(checkpoint_dir):
                 checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
                 if checkpoints:
-                    # Sort by step number
                     checkpoints.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
                     checkpoint_path = os.path.join(checkpoint_dir, checkpoints[-1])
-            
             if not checkpoint_path:
                 best_path = os.path.join(model_dir, "best_model", "model.pth")
-                if os.path.exists(best_path):
-                    checkpoint_path = best_path
+                if os.path.exists(best_path): checkpoint_path = best_path
 
         if checkpoint_path and os.path.exists(checkpoint_path):
             print(f"Resuming from checkpoint: {checkpoint_path}")
             start_step = learner.load_checkpoint(checkpoint_path)
-        else:
-            print("No checkpoint found to resume from. Starting from scratch.")
 
     # Train
     learner.learn(total_timesteps=args.timesteps, start_step=start_step)
 
-    print(f"\nModels saved to: {model_dir}")
+    # Final Verification
+    final_path = os.path.join(model_dir, "final_model.pth")
+    if os.path.exists(final_path):
+        print(f"\nSUCCESS: Model saved and verified at: {final_path}")
+    else:
+        print(f"\nWARNING: Could not verify final_model.pth at {final_path}")
+
     print(f"TensorBoard logs: logs/{args.model_id}")
-    print(f"Run: tensorboard --logdir logs/")
+
 
 if __name__ == "__main__":
     main()
