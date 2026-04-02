@@ -62,8 +62,8 @@ def parse_args():
     parser.add_argument(
         "--drive-path",
         type=str,
-        default=None,
-        help="Google Drive path to sync results (e.g., /content/drive/MyDrive/RL_Models)",
+        default="/content/drive/MyDrive/RL_Models",
+        help="Google Drive path to sync results (default: /content/drive/MyDrive/RL_Models)",
     )
     parser.add_argument(
         "--ema-decay",
