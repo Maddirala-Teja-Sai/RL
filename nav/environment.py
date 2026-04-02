@@ -558,22 +558,65 @@ class Environment(pettingzoo.ParallelEnv):
         if self.render_mode in ["human", "rgb_array"]: return self.window.render(state)
 
     def process_lidar_observation(self, max_range, lidar_observation):
-        rays = np.zeros((3, len(lidar_observation)))
-        for i, ray in enumerate(lidar_observation):
-            if ray.intersects:
-                ch = 0 if ray.intersecting_with == "obstacle" else (1 if ray.intersecting_with == "boundary" else 2)
-                rays[ch, i] = max_range - ray.t
+        """Vectorized processing of raw ray results into 3-channel LiDAR observation."""
+        N = len(lidar_observation)
+        if N == 0:
+            return np.zeros((3, 0), dtype=np.float32)
+
+        # Pre-allocate
+        rays = np.zeros((3, N), dtype=np.float32)
+        
+        # Extract data efficiently
+        intersects = np.array([r.intersects for r in lidar_observation])
+        if not np.any(intersects):
+            return rays
+
+        ts = np.array([r.t if r.t is not None else 0.0 for r in lidar_observation])
+        types = np.array([r.intersecting_with for r in lidar_observation])
+        
+        # Map types to channels (0: obstacle, 1: boundary, 2: agent)
+        # Using vectorized boolean masks for speed
+        rays[0, (types == "obstacle")] = max_range - ts[(types == "obstacle")]
+        rays[1, (types == "boundary")] = max_range - ts[(types == "boundary")]
+        rays[2, (types == "agent")] = max_range - ts[(types == "agent")]
+        
         return rays
 
     def get_lidar_observation(self):
+        """Generates LiDAR observations only for active agents to optimize performance."""
         all_rays, goals, rpa = [], [], []
-        for aid in self.agents:
+        active_indices = []
+        
+        for i, aid in enumerate(self.agents):
             ag = self.agents_dict[aid]
+            if ag.goal_reached:
+                continue
+                
+            active_indices.append(i)
             all_rays.extend(create_lidar_rays(ag.pos, ag.direction, self.config.num_rays, ag.config.max_range, ag.config.fov_degrees))
             goals.append(Circle(center=Vector2(x=ag.goal_pos[0], y=ag.goal_pos[1]), radius=self.config.goal_threshold))
             rpa.append(self.config.num_rays)
-        res = batch_ray_intersection_detailed(np.array(all_rays), self._active_obstacles(), [self.config.boundary], goals=goals, agents=[Circle(center=Vector2(x=self.agents_dict[a].pos[0], y=self.agents_dict[a].pos[1]), radius=self.agents_dict[a].radius) for a in self.agents], rays_per_agent=rpa)
-        return np.reshape(res, (len(self.agents), self.config.num_rays))
+        
+        # Initialize full results with safe "NoHit" defaults
+        final_results = [ [NoHit] * self.config.num_rays for _ in range(len(self.agents)) ]
+        
+        if all_rays:
+            # Batch raycast for all ACTIVE agents at once
+            res = batch_ray_intersection_detailed(
+                np.array(all_rays), 
+                self._active_obstacles(), 
+                [self.config.boundary], 
+                goals=goals, 
+                agents=[Circle(center=Vector2(x=self.agents_dict[a].pos[0], y=self.agents_dict[a].pos[1]), radius=self.agents_dict[a].radius) for a in self.agents], 
+                rays_per_agent=rpa
+            )
+            
+            # Reshape and map back to the correct agent slots
+            reshaped_res = np.reshape(res, (len(active_indices), self.config.num_rays))
+            for local_idx, global_idx in enumerate(active_indices):
+                final_results[global_idx] = reshaped_res[local_idx]
+                
+        return final_results
 
     def get_render_state(self):
         agents = [AgentState(position=(a.pos[0], a.pos[1]), radius=a.radius, color=a.config.agent_col, velocity=(a.current_speed*a.direction[0], a.current_speed*a.direction[1]), direction=(a.direction[0], a.direction[1]), lidar_observation=a.last_raw_lidar_observation, fov_degrees=a.config.fov_degrees, max_range=a.config.max_range, goals=Circle(center=Vector2(x=a.goal_pos[0], y=a.goal_pos[1]), radius=self.config.goal_threshold), goal_reached=a.goal_reached, last_reward=a.last_reward) for a in self.agents_dict.values()]

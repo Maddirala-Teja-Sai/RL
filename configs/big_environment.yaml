@@ -1,5 +1,5 @@
-# BIG Environment: Mathematically zoomed out within 0..1 limits, as a horizontal corridor
-num_rays: 120
+num_rays: 60
+repeat_steps: 4
 goal_threshold: 0.01  # Reduced because agents are smaller
 num_agents_per_group: 1
 terminal_strategy: individual
@@ -64,38 +64,6 @@ agents:
     fov_degrees: 360
     max_range: 0.15
     agent_col: cyan
-
-  - start_pos: { center: { x: 0.20, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.86, y: 0.94 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
-    max_speed: 0.1
-    fov_degrees: 360
-    max_range: 0.15
-    agent_col: magenta
-
-  - start_pos: { center: { x: 0.22, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.88, y: 0.94 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
-    max_speed: 0.1
-    fov_degrees: 360
-    max_range: 0.15
-    agent_col: orange
-
-  - start_pos: { center: { x: 0.24, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.90, y: 0.94 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
-    max_speed: 0.1
-    fov_degrees: 360
-    max_range: 0.15
-    agent_col: purple
-
-  - start_pos: { center: { x: 0.26, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.92, y: 0.94 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
-    max_speed: 0.1
-    fov_degrees: 360
-    max_range: 0.15
-    agent_col: pink
 
 obstacles:
   # Static vertical walls forming a central gap
