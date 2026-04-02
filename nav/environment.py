@@ -15,6 +15,7 @@ from .ray_intersection import (
     batch_ray_intersection_detailed,
     create_lidar_rays,
     RayIntersectionOutput,
+    NoHit,
 )
 from collections import deque
 from .live_renderer import SimulationWindow
