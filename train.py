@@ -56,8 +56,14 @@ def parse_args():
     parser.add_argument(
         "--n-agents",
         type=int,
-        default=8,
-        help="Number of agents (for algorithms that need it)",
+        default=5,
+        help="Number of agents",
+    )
+    parser.add_argument(
+        "--drive-path",
+        type=str,
+        default=None,
+        help="Google Drive path to sync results (e.g., /content/drive/MyDrive/RL_Models)",
     )
     parser.add_argument(
         "--ema-decay",
@@ -229,6 +235,26 @@ def main():
         print(f"\nWARNING: Could not verify final_model.pth at {final_path}")
 
     print(f"TensorBoard logs: logs/{args.model_id}")
+
+    # Google Drive Sync
+    if args.drive_path:
+        print(f"\n📂 SYNCING TO GOOGLE DRIVE: {args.drive_path}")
+        dest_base = os.path.join(args.drive_path, args.model_id)
+        os.makedirs(dest_base, exist_ok=True)
+        
+        # Sync Models
+        dest_models = os.path.join(dest_base, "models")
+        if os.path.exists(dest_models): shutil.rmtree(dest_models)
+        shutil.copytree(model_dir, dest_models)
+        
+        # Sync Logs
+        dest_logs = os.path.join(dest_base, "logs")
+        curr_logs = os.path.join("logs", args.model_id)
+        if os.path.exists(curr_logs):
+            if os.path.exists(dest_logs): shutil.rmtree(dest_logs)
+            shutil.copytree(curr_logs, dest_logs)
+            
+        print(f"✅ Sync complete! Results saved to Google Drive.")
 
 
 if __name__ == "__main__":
