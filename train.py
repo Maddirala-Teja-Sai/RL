@@ -13,7 +13,7 @@ import argparse
 import os
 import shutil
 import yaml
-import __main__
+import numpy as np
 
 from nav.environment import Environment
 from nav.config_models import EnvConfig
@@ -58,13 +58,13 @@ def parse_args():
         "--n-agents",
         type=int,
         default=8,
-        help="Number of agents",
+        help="Number of agents (for algorithms that need it)",
     )
     parser.add_argument(
         "--ema-decay",
         type=float,
         default=0.0,
-        help="EMA decay for MAPPO actor averaging (0 disables EMA)",
+        help="EMA decay for actor networks (e.g. 0.995)",
     )
     parser.add_argument(
         "--history-length",
@@ -86,7 +86,7 @@ def parse_args():
         "--checkpoint",
         type=str,
         default=None,
-        help="Specific checkpoint file to resume from (optional)",
+        help="Path to a specific checkpoint to resume from",
     )
     return parser.parse_args()
 
@@ -125,6 +125,13 @@ def get_algorithm(algo_name):
 def main():
     args = parse_args()
 
+    # Create directories first to avoid NameError
+    model_dir = os.path.join("models", args.model_id)
+    video_dir = os.path.join("videos", args.model_id)
+    os.makedirs(model_dir, exist_ok=True)
+    os.makedirs(video_dir, exist_ok=True)
+    os.makedirs("logs", exist_ok=True)
+
     print("=" * 60)
     print("MADRL Navigation Training")
     print("=" * 60)
@@ -142,6 +149,10 @@ def main():
     config = load_config(args.config)
     env = create_env(config)
     n_agents = env.n_agents
+    
+    # Update args.n_agents for display
+    args.n_agents = n_agents
+
     # Copy config to model directory for reference
     shutil.copy2(args.config, os.path.join(model_dir, "env.yaml"))
 
@@ -172,7 +183,6 @@ def main():
     AlgoClass = get_algorithm(args.algo)
 
     if args.algo == "multimodal":
-        # Multimodal always uses bilinear internally
         learner = AlgoClass(
             env=env,
             eval_config=config,
@@ -202,11 +212,10 @@ def main():
             if os.path.exists(checkpoint_dir):
                 checkpoints = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
                 if checkpoints:
-                    # Sort by step number: model_step_X.pth
+                    # Sort by step number
                     checkpoints.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
                     checkpoint_path = os.path.join(checkpoint_dir, checkpoints[-1])
             
-            # If no checkpoint in checkpoints/, try best_model/model.pth
             if not checkpoint_path:
                 best_path = os.path.join(model_dir, "best_model", "model.pth")
                 if os.path.exists(best_path):
@@ -224,5 +233,6 @@ def main():
     print(f"\nModels saved to: {model_dir}")
     print(f"TensorBoard logs: logs/{args.model_id}")
     print(f"Run: tensorboard --logdir logs/")
+
 if __name__ == "__main__":
     main()
