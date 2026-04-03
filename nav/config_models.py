@@ -76,6 +76,7 @@ class SwitchConfig(BaseModel):
 class GateConfig(BaseModel):
     shape: Rectangle
     opens_when_active_switches: int = 1
+    trigger_zone: Optional[Union[Rectangle, Circle]] = None  # Gate opens when agent enters this zone
 
 
 class EnvConfig(BaseModel):
@@ -91,7 +92,10 @@ class EnvConfig(BaseModel):
     switches: List[SwitchConfig] = []
     gates: List[GateConfig] = []
     simultaneous_arrival_bonus: float = 0.0
-    simultaneous_arrival_window: int = 0
+    simultaneous_arrival_window: int = 50
     formation_reward_weight: float = 0.0
     use_shared_goals: bool = False
     terminal_strategy: Literal["any", "all", "individual"] = "any"
+    gate_open_bonus: float = 5.0          # Bonus when a gate opens
+    potential_shaping_scale: float = 5.0  # Scale of potential-based goal shaping
+    stuck_zone_penalty: float = 80.0      # Penalty for re-entering a stuck zone

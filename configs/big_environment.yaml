@@ -1,72 +1,68 @@
 num_rays: 60
 repeat_steps: 4
-goal_threshold: 0.01  # Reduced because agents are smaller
-num_agents_per_group: 1
-terminal_strategy: individual
+goal_threshold: 0.015
+num_agents_per_group: 5          # All 5 agents are one formation group
+terminal_strategy: all           # Episode ends only when ALL agents reach their goals
+simultaneous_arrival_bonus: 60.0 # Huge bonus for arriving together
+simultaneous_arrival_window: 100  # Within 100 steps counts as simultaneous
+formation_reward_weight: 0.4     # Continuous reward for staying in formation
+potential_shaping_scale: 6.0     # Dense navigation signal
+stuck_zone_penalty: 80.0         # Penalty for revisiting stuck positions
 
 boundary:
   type: polygon
-  vertices: # Expanded to create a full large room filling the window
+  vertices:
     - { x: 0.05, y: 0.05 }
     - { x: 0.95, y: 0.05 }
     - { x: 0.95, y: 0.95 }
     - { x: 0.05, y: 0.95 }
 
-switches:
-  - zone:
-      type: circle
-      center: { x: 0.15, y: 0.40 }
-      radius: 0.03
-    color: "white"
-  - zone:
-      type: circle
-      center: { x: 0.15, y: 0.70 }
-      radius: 0.03
-    color: "white"
-
 agents:
+  # All 5 agents start at the bottom and must arrive at nearby goal positions simultaneously.
+  # The objective CANNOT be solved by one agent alone because the arrival bonus requires
+  # all agents to reach their goals within the same time window.
   - start_pos: { center: { x: 0.10, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.76, y: 0.94 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.76, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0075
     max_speed: 0.1
     fov_degrees: 360
-    max_range: 0.15
+    max_range: 0.18
     agent_col: red
 
   - start_pos: { center: { x: 0.12, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.78, y: 0.94 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.78, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0075
     max_speed: 0.1
     fov_degrees: 360
-    max_range: 0.15
+    max_range: 0.18
     agent_col: blue
 
   - start_pos: { center: { x: 0.14, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.80, y: 0.94 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.80, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0075
     max_speed: 0.1
     fov_degrees: 360
-    max_range: 0.15
+    max_range: 0.18
     agent_col: green
 
   - start_pos: { center: { x: 0.16, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.82, y: 0.94 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.82, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0075
     max_speed: 0.1
     fov_degrees: 360
-    max_range: 0.15
+    max_range: 0.18
     agent_col: yellow
 
   - start_pos: { center: { x: 0.18, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.84, y: 0.94 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.84, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0075
     max_speed: 0.1
     fov_degrees: 360
-    max_range: 0.15
+    max_range: 0.18
     agent_col: cyan
 
 obstacles:
-  # Static vertical walls forming a central gap
+  # Static vertical walls forming a central gap (UNCHANGED)
   - shape:
       type: rectangle
       center: { x: 0.5, y: 0.2 }
@@ -78,21 +74,20 @@ obstacles:
       width: 0.04
       height: 0.3
 
-  # A moving platform sliding horizontally to block the gap dynamically
+  # A moving platform sliding horizontally (UNCHANGED)
   - shape:
       type: rectangle
       center: { x: 0.5, y: 0.5 }
       width: 0.05
       height: 0.15
-    is_gate: true
     schedule:
-      speed: 0.15
-      direction: { x: 1, y: 0 } 
+      speed: 0.12
+      direction: { x: 1, y: 0 }
       angular_speed: 0
       boundary_x_min: 0.25
       boundary_x_max: 0.75
 
-  # Left-side spinning block (requires agents to time their entry)
+  # Left-side spinning block (UNCHANGED)
   - shape:
       type: rectangle
       center: { x: 0.3, y: 0.5 }
@@ -101,7 +96,7 @@ obstacles:
     schedule:
       angular_speed: 60
 
-  # Right-side static circles
+  # Right-side static circles (UNCHANGED)
   - shape:
       type: circle
       center: { x: 0.7, y: 0.35 }
@@ -111,4 +106,4 @@ obstacles:
       center: { x: 0.7, y: 0.65 }
       radius: 0.05
 
-max_time: 1000
+max_time: 2000

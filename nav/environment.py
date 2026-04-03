@@ -224,6 +224,7 @@ class Environment(pettingzoo.ParallelEnv):
         self.stuck_min_dist = 0.02
         self.agent_stuck_points = {agent_id: [] for agent_id in self.agents}
         self.agent_last_positions = {agent_id: agent.pos.copy() for agent_id, agent in self.agents_dict.items()}
+        self.agent_prev_goal_dist = {agent_id: np.linalg.norm(agent.goal_pos - agent.pos) for agent_id, agent in self.agents_dict.items()}
 
     def preprocess_agent_configs(
         self, agent_configs: List[AgentConfig], num_agents_per_group: int
@@ -302,18 +303,10 @@ class Environment(pettingzoo.ParallelEnv):
         return self._agent_in_rectangle(agent, zone)
 
     def _update_switch_gate_state(self):
-        active_switches = set()
-        for idx, switch in enumerate(self.switches):
-            if any(self._agent_in_zone(agent, switch.zone) for agent in self.agents_dict.values()):
-                active_switches.add(idx)
-
-        previous_mask = list(self.gate_open_mask)
-        self.active_switches = active_switches
-        self.gate_open_mask = [
-            len(active_switches) >= gate.opens_when_active_switches
-            for gate in self.gates
-        ]
-        self.gate_just_opened = any(new and not old for old, new in zip(previous_mask, self.gate_open_mask))
+        """No-op: gates and triggers removed. Kept for compatibility."""
+        self.active_switches = set()
+        self.gate_open_mask = []
+        self.gate_just_opened = False
 
     def _active_obstacles(self):
         obstacles = list(self.obstacles)
@@ -356,6 +349,9 @@ class Environment(pettingzoo.ParallelEnv):
         self.group_goal_steps = {agent_id: None for agent_id in self.agents_dict}
         self.group_bonus_awarded = {group_idx: False for group_idx in self.group_members}
         self.pending_group_bonus = {agent_id: 0.0 for agent_id in self.agents_dict}
+        self.agent_stuck_points = {agent_id: [] for agent_id in self.agents}
+        self.agent_last_positions = {agent_id: agent.pos.copy() for agent_id, agent in self.agents_dict.items()}
+        self.agent_prev_goal_dist = {agent_id: np.linalg.norm(agent.goal_pos - agent.pos) for agent_id, agent in self.agents_dict.items()}
         
         self.occupied_goals = set()
         if self.config.use_shared_goals:
@@ -382,24 +378,15 @@ class Environment(pettingzoo.ParallelEnv):
         for agent_idx, agent_id in enumerate(self.agents):
             agent = self.agents_dict[agent_id]
             state_dict = agent.get_state_dict()
-            switch_features = np.array([
-                float(any(self._agent_in_zone(agent, switch.zone) for switch in self.switches)),
-                len(self.active_switches) / max(1, len(self.switches)) if self.switches else 0.0,
-                float(any(self.gate_open_mask)),
-            ], dtype=np.float32)
-            
-            if self.config.use_shared_goals:
-                available_goals = [
-                    self.current_goal_locations[i] for i in range(len(self.current_goal_locations))
-                    if i not in self.occupied_goals
-                ]
-                if available_goals:
-                    distances = [np.linalg.norm(loc - agent.pos) for loc in available_goals]
-                    nearest_idx = np.argmin(distances)
-                    agent.goal_pos = available_goals[nearest_idx]
-                state_dict = agent.get_state_dict()
 
-            state_vector = np.concatenate([np.array(state_dict["state_vector"], dtype=np.float32), switch_features])
+            # Cooperative awareness features:
+            #  - fraction of teammates that have arrived
+            #  - own distance to goal normalized
+            num_arrived = sum(1 for a in self.agents_dict.values() if a.goal_reached) / max(1, self.n_agents)
+            curr_dist = np.linalg.norm(agent.goal_pos - agent.pos)
+            cooperative_features = np.array([num_arrived, curr_dist], dtype=np.float32)
+
+            state_vector = np.concatenate([np.array(state_dict["state_vector"], dtype=np.float32), cooperative_features])
             lidar_vector = processed_lidar_observations[agent_idx].flatten().astype(np.float32)
             observations[agent_id] = np.concatenate([state_vector, lidar_vector])
 
@@ -407,29 +394,37 @@ class Environment(pettingzoo.ParallelEnv):
 
     def calculate_reward(self, agent: Agent, collision_data: CollisionData):
         if agent.goal_reached:
-            return 100
+            return 100.0
         if collision_data.is_colliding:
-            return -10
-        goal_reward = agent.direction.dot(agent.goal_pos - agent.pos)
-        scale_goal_reward_with_speed = goal_reward * (agent.current_speed / agent.config.max_speed)
-        reward = scale_goal_reward_with_speed * 0.25 - 0.05
-        for idx, switch in enumerate(self.switches):
-            if idx in self.active_switches and self._agent_in_zone(agent, switch.zone):
-                reward += switch.reward
-        if self.gate_just_opened:
-            reward += 2.0
-        
-        # Stuck penalty to discourage staying in problematic areas
+            return -10.0
+
+        # 1. Potential-based shaping: dense gradient toward goal
+        curr_dist = np.linalg.norm(agent.goal_pos - agent.pos)
+        prev_dist = self.agent_prev_goal_dist.get(agent.agent_id, curr_dist)
+        potential_reward = (prev_dist - curr_dist) * self.config.potential_shaping_scale
+        self.agent_prev_goal_dist[agent.agent_id] = curr_dist
+
+        # 2. Small time penalty to encourage speed
+        reward = potential_reward - 0.02
+
+        # 3. Stuck zone memory penalty: discourage revisiting stuck spots
         for stuck_pos in self.agent_stuck_points.get(agent.agent_id, []):
-            dist_to_stuck = np.linalg.norm(agent.pos - stuck_pos)
-            if dist_to_stuck < 0.05:
-                reward -= (0.05 - dist_to_stuck) * 100 # Heavy penalty for re-entering stuck zone
-                
+            dist = np.linalg.norm(agent.pos - stuck_pos)
+            if dist < 0.05:
+                reward -= (0.05 - dist) * self.config.stuck_zone_penalty
+
+        # 4. Simultaneous arrival group bonus (applied from pending after _update_group_arrival_bonus)
         reward += self.pending_group_bonus.get(agent.agent_id, 0.0)
+
+        # 5. Formation cohesion: keep all agents moving as a group
         if self.config.formation_reward_weight > 0:
             group_idx = self.agent_group_map[agent.agent_id]
-            centroid = np.mean([self.agents_dict[aid].pos for aid in self.group_members[group_idx]], axis=0)
-            reward -= self.config.formation_reward_weight * max(0, np.linalg.norm(agent.pos - centroid) - 0.05)
+            members = self.group_members[group_idx]
+            if len(members) > 1:
+                centroid = np.mean([self.agents_dict[aid].pos for aid in members], axis=0)
+                dist_from_centroid = np.linalg.norm(agent.pos - centroid)
+                reward -= self.config.formation_reward_weight * max(0.0, dist_from_centroid - 0.08)
+
         return reward
 
     def _update_group_arrival_bonus(self):
@@ -499,11 +494,10 @@ class Environment(pettingzoo.ParallelEnv):
             agent.update_pos(DELTA_T)
             if self.num_steps % self.stuck_check_interval == 0:
                 dist_moved = np.linalg.norm(agent.pos - self.agent_last_positions[agent_id])
-                if dist_moved < self.stuck_min_dist:
-                    # Record the stuck point to prevent re-sticking via reward penalty
+                if dist_moved < self.stuck_min_dist and not agent.goal_reached:
+                    # Layer 2: Record stuck point for avoidance penalty
                     self.agent_stuck_points[agent_id].append(agent.pos.copy())
-                    
-                    # Apply a stronger unjam nudge
+                    # Full random escape direction (360 degrees)
                     angle = np.random.uniform(0, 2 * np.pi)
                     agent.direction = np.array([np.cos(angle), np.sin(angle)])
                 self.agent_last_positions[agent_id] = agent.pos.copy()
