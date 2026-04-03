@@ -225,6 +225,7 @@ class Environment(pettingzoo.ParallelEnv):
         self.agent_stuck_points = {agent_id: [] for agent_id in self.agents}
         self.agent_last_positions = {agent_id: agent.pos.copy() for agent_id, agent in self.agents_dict.items()}
         self.agent_prev_goal_dist = {agent_id: np.linalg.norm(agent.goal_pos - agent.pos) for agent_id, agent in self.agents_dict.items()}
+        self.winning_group = None  # Tracks which group won the competitive race
 
     def preprocess_agent_configs(
         self, agent_configs: List[AgentConfig], num_agents_per_group: int
@@ -352,6 +353,7 @@ class Environment(pettingzoo.ParallelEnv):
         self.agent_stuck_points = {agent_id: [] for agent_id in self.agents}
         self.agent_last_positions = {agent_id: agent.pos.copy() for agent_id, agent in self.agents_dict.items()}
         self.agent_prev_goal_dist = {agent_id: np.linalg.norm(agent.goal_pos - agent.pos) for agent_id, agent in self.agents_dict.items()}
+        self.winning_group = None  # Reset competitive result each episode
         
         self.occupied_goals = set()
         if self.config.use_shared_goals:
@@ -445,6 +447,27 @@ class Environment(pettingzoo.ParallelEnv):
                     self.group_bonus_awarded[group_idx] = True
                     for aid in members: self.pending_group_bonus[aid] += self.config.simultaneous_arrival_bonus
 
+    def _update_competitive_result(self):
+        """When first agent reaches goal: bonus for winning team, penalty for losers."""
+        if self.winning_group is not None:
+            return  # Already resolved
+        if not (self.config.winner_team_bonus != 0 or self.config.loser_team_penalty != 0):
+            return
+        for agent_id, agent in self.agents_dict.items():
+            if agent.goal_reached:
+                winning_group = self.agent_group_map[agent_id]
+                self.winning_group = winning_group
+                # Reward winning team's other members
+                for aid in self.group_members[winning_group]:
+                    if aid != agent_id:
+                        self.pending_group_bonus[aid] += self.config.winner_team_bonus
+                # Penalize all losing team members
+                for group_idx, members in self.group_members.items():
+                    if group_idx != winning_group:
+                        for aid in members:
+                            self.pending_group_bonus[aid] += self.config.loser_team_penalty
+                break
+
     def step(self, actions: dict[str, np.ndarray]):
         if isinstance(actions, dict):
             processed_actions = [Vector2(x=float(actions.get(a, [0,0])[0]), y=float(actions.get(a, [0,0])[1])) for a in self.agents]
@@ -469,6 +492,7 @@ class Environment(pettingzoo.ParallelEnv):
                     break
                     
         self._update_group_arrival_bonus()
+        self._update_competitive_result()
         rewards = {aid: self.calculate_reward(self.agents_dict[aid], cd) for aid, cd in zip(self.agents, collision_datas)}
         for aid, rew in rewards.items():
             self.agents_dict[aid].last_reward = rew

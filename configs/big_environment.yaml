@@ -1,13 +1,14 @@
 num_rays: 32
 repeat_steps: 2
 goal_threshold: 0.015
-num_agents_per_group: 2          # 2 agents per group — 2 groups of 2
-terminal_strategy: any           # Episode ends when ANY agent reaches its goal
-simultaneous_arrival_bonus: 50.0 # Bonus when both agents in a group arrive together
-simultaneous_arrival_window: 60  # Within 60 steps = simultaneous
-formation_reward_weight: 0.6     # Must stay close within each group
+num_agents_per_group: 2          # 2 agents per group — 2 competing groups
+terminal_strategy: any           # Episode ends when ANY ONE agent reaches its goal
+simultaneous_arrival_bonus: 0.0  # Not used in competitive mode
+formation_reward_weight: 0.5     # Must stay close within each group
 potential_shaping_scale: 6.0
 stuck_zone_penalty: 80.0
+winner_team_bonus: 70.0          # Winning agent's teammate gets +70
+loser_team_penalty: -20.0        # Both agents on losing team get -20
 
 boundary:
   type: polygon
@@ -18,36 +19,36 @@ boundary:
     - { x: 0.05, y: 0.95 }
 
 agents:
-  # --- GROUP 1 (Red + Blue): Navigate through the LEFT corridor ---
-  # These two must move in formation together.
-  - start_pos: { center: { x: 0.10, y: 0.12 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.22, y: 0.88 }, width: 0.01, height: 0.01 }
+  # === GROUP 1 (Red + Blue) ===
+  # Same start and goal as Group 2. They compete for the same path and goal.
+  - start_pos: { center: { x: 0.12, y: 0.12 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.78, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0085
     max_speed: 0.12
     fov_degrees: 360
     max_range: 0.20
     agent_col: red
 
-  - start_pos: { center: { x: 0.14, y: 0.12 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.26, y: 0.88 }, width: 0.01, height: 0.01 }
+  - start_pos: { center: { x: 0.16, y: 0.12 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.82, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0085
     max_speed: 0.12
     fov_degrees: 360
     max_range: 0.20
     agent_col: blue
 
-  # --- GROUP 2 (Green + Yellow): Navigate through the RIGHT corridor ---
-  # These two must move in formation together, independently from Group 1.
-  - start_pos: { center: { x: 0.82, y: 0.12 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.74, y: 0.88 }, width: 0.01, height: 0.01 }
+  # === GROUP 2 (Green + Yellow) ===
+  # Same start and goal as Group 1. They race against Group 1.
+  - start_pos: { center: { x: 0.14, y: 0.12 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.76, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0085
     max_speed: 0.12
     fov_degrees: 360
     max_range: 0.20
     agent_col: green
 
-  - start_pos: { center: { x: 0.86, y: 0.12 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.78, y: 0.88 }, width: 0.01, height: 0.01 }
+  - start_pos: { center: { x: 0.18, y: 0.12 }, width: 0.01, height: 0.01 }
+    goal_pos: { center: { x: 0.80, y: 0.88 }, width: 0.01, height: 0.01 }
     radius: 0.0085
     max_speed: 0.12
     fov_degrees: 360
@@ -55,7 +56,7 @@ agents:
     agent_col: yellow
 
 obstacles:
-  # Central vertical walls
+  # Central vertical walls (narrowed)
   - shape:
       type: rectangle
       center: { x: 0.5, y: 0.2 }
@@ -74,7 +75,7 @@ obstacles:
       width: 0.3
       height: 0.02
 
-  # Moving platform (timing challenge in the center)
+  # Moving platform (timing challenge)
   - shape:
       type: rectangle
       center: { x: 0.5, y: 0.5 }

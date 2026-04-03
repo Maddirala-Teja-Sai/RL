@@ -99,3 +99,5 @@ class EnvConfig(BaseModel):
     gate_open_bonus: float = 5.0          # Bonus when a gate opens
     potential_shaping_scale: float = 5.0  # Scale of potential-based goal shaping
     stuck_zone_penalty: float = 80.0      # Penalty for re-entering a stuck zone
+    winner_team_bonus: float = 0.0        # Bonus for teammates of the winning agent
+    loser_team_penalty: float = 0.0       # Penalty for agents on the losing team
