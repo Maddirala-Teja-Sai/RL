@@ -330,7 +330,9 @@ class Environment(pettingzoo.ParallelEnv):
             
             # Apply agent_spawn_noise jitter on top of rectangle sampling
             jitter = np.random.uniform(-self.config.agent_spawn_noise, self.config.agent_spawn_noise, size=2)
-            agent.pos = np.clip(pos + jitter, 0.0, 1.0) # Stay within map
+            
+            # SAFE CLIPPING: Must stay inside the 0.05 to 0.95 boundary lines (with a 0.01 safety margin)
+            agent.pos = np.clip(pos + jitter, 0.06, 0.94) 
             
             agent.goal_pos = sample_point_in_rectangle(agent.goal_sample_area)
             agent.current_speed = 0.1
