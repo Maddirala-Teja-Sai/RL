@@ -56,7 +56,7 @@ obstacles:
   - shape:
       type: rectangle
       center: { x: 0.7, y: 0.8 }
-      width: 0.3
+      width: 0.02
       height: 0.02
 
   # Moving platform (timing challenge)
