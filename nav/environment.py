@@ -262,8 +262,9 @@ class Environment(pettingzoo.ParallelEnv):
         state_dim = self.agent_states_dim
         lidar_dim = self.config.num_rays * 3
 
+        max_range = max(agent.config.max_range for agent in self.agents_dict.values())
         obs_low = np.concatenate([np.array([-1] * state_dim), np.zeros(lidar_dim)])
-        obs_high = np.concatenate([np.array([1] * state_dim), np.full(lidar_dim, max_speed)])
+        obs_high = np.concatenate([np.array([1] * state_dim), np.full(lidar_dim, max_range)])
         self._observation_space = spaces.Box(low=obs_low, high=obs_high, dtype=np.float32)
 
     @property
