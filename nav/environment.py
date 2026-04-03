@@ -381,12 +381,14 @@ class Environment(pettingzoo.ParallelEnv):
             agent = self.agents_dict[agent_id]
             state_dict = agent.get_state_dict()
 
-            # Cooperative awareness features:
-            #  - fraction of teammates that have arrived
-            #  - own distance to goal normalized
+            # Cooperative/competitive awareness features (must be 3 to match encoder):
+            #  1. Fraction of all agents that have arrived
+            #  2. Own distance to goal
+            #  3. Whether winning group is decided (competitive signal)
             num_arrived = sum(1 for a in self.agents_dict.values() if a.goal_reached) / max(1, self.n_agents)
             curr_dist = np.linalg.norm(agent.goal_pos - agent.pos)
-            cooperative_features = np.array([num_arrived, curr_dist], dtype=np.float32)
+            race_decided = float(self.winning_group is not None) if hasattr(self, 'winning_group') else 0.0
+            cooperative_features = np.array([num_arrived, curr_dist, race_decided], dtype=np.float32)
 
             state_vector = np.concatenate([np.array(state_dict["state_vector"], dtype=np.float32), cooperative_features])
             lidar_vector = processed_lidar_observations[agent_idx].flatten().astype(np.float32)
