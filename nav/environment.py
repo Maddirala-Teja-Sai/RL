@@ -396,6 +396,10 @@ class Environment(pettingzoo.ParallelEnv):
         if agent.goal_reached:
             return 100.0
         if collision_data.is_colliding:
+            # Soft penalty for bumping teammates (they need to move together)
+            # Hard penalty for hitting walls/obstacles (must avoid these)
+            if collision_data.colliding_with == "agent":
+                return -2.0
             return -10.0
 
         # 1. Potential-based shaping: dense gradient toward goal
