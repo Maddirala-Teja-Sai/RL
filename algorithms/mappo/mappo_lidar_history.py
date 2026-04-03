@@ -374,7 +374,7 @@ class MAPPO(BaseAlgorithm):
                 best_reward = mean_reward
                 self.save_model(os.path.join(self.model_dir, "best_model", "model.pth"))
 
-            if update % 50 == 0:
+            if update % 25 == 0:
                 self.save_model(
                     os.path.join(self.model_dir, "checkpoints", f"model_step_{global_step}.pth")
                 )
