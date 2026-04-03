@@ -104,3 +104,4 @@ class EnvConfig(BaseModel):
     collision_penalty: float = 10.0       # Penalty for hitting walls/obstacles
     agent_collision_penalty: float = 2.0  # Penalty for bumping into teammates
     not_reached_goal_penalty: float = 0.0 # Penalty for agents that haven't reached goal when episode ends
+    goal_reach_bonus: float = 100.0       # Bonus for reaching the goal

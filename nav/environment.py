@@ -398,7 +398,7 @@ class Environment(pettingzoo.ParallelEnv):
 
     def calculate_reward(self, agent: Agent, collision_data: CollisionData):
         if agent.goal_reached:
-            return 100.0
+            return self.config.goal_reach_bonus
         if collision_data.is_colliding:
             # Soft penalty for bumping teammates (to encourage tight formation)
             # Hard penalty for hitting walls/obstacles (must avoid these)
@@ -501,6 +501,14 @@ class Environment(pettingzoo.ParallelEnv):
                     
         self._update_group_arrival_bonus()
         self._update_competitive_result()
+        
+        # If the episode times out (truncation), penalize everyone who hasn't reached the goal.
+        # (This is the timeout penalty, separate from the "losing the race" penalty)
+        if any(truncations.values()) and self.winning_group is None:
+            for aid, ag in self.agents_dict.items():
+                if not ag.goal_reached:
+                    self.pending_group_bonus[aid] -= self.config.not_reached_goal_penalty
+
         rewards = {aid: self.calculate_reward(self.agents_dict[aid], cd) for aid, cd in zip(self.agents, collision_datas)}
         for aid, rew in rewards.items():
             self.agents_dict[aid].last_reward = rew
