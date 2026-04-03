@@ -101,3 +101,6 @@ class EnvConfig(BaseModel):
     stuck_zone_penalty: float = 80.0      # Penalty for re-entering a stuck zone
     winner_team_bonus: float = 0.0        # Bonus for teammates of the winning agent
     loser_team_penalty: float = 0.0       # Penalty for agents on the losing team
+    collision_penalty: float = 10.0       # Penalty for hitting walls/obstacles
+    agent_collision_penalty: float = 2.0  # Penalty for bumping into teammates
+    not_reached_goal_penalty: float = 0.0 # Penalty for agents that haven't reached goal when episode ends

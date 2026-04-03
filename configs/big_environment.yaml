@@ -7,8 +7,11 @@ simultaneous_arrival_bonus: 0.0
 formation_reward_weight: 0.5     # Must stay close within each group
 potential_shaping_scale: 6.0
 stuck_zone_penalty: 80.0
-winner_team_bonus: 70.0          # Winning agent's teammate gets +70
-loser_team_penalty: -20.0        # Both agents on losing team get -20
+winner_team_bonus: 70.0           # Winning agent's teammate gets +70
+loser_team_penalty: 50.0          # Penalty for losing the race (positive in config, subtracted in code)
+not_reached_goal_penalty: 50.0    # Penalty for not reaching goal (positive in config, subtracted in code)
+collision_penalty: 30.0           # Penalty for hitting walls/obstacles
+agent_collision_penalty: 10.0     # Penalty for bumping into teammates (increased to 10)
 
 boundary:
   type: polygon
@@ -19,8 +22,7 @@ boundary:
     - { x: 0.05, y: 0.95 }
 
 agents:
-  # === GROUP 1 template (Red + Blue generated from this) ===
-  # num_agents_per_group=2 creates 2 agents from this one entry
+  # === GROUP 1 ===
   - start_pos: { center: { x: 0.12, y: 0.12 }, width: 0.08, height: 0.01 }
     goal_pos: { center: { x: 0.79, y: 0.88 }, width: 0.08, height: 0.01 }
     radius: 0.0085
@@ -29,8 +31,7 @@ agents:
     max_range: 0.20
     agent_col: red
 
-  # === GROUP 2 template (Green + Yellow generated from this) ===
-  # num_agents_per_group=2 creates 2 agents from this one entry
+  # === GROUP 2 ===
   - start_pos: { center: { x: 0.16, y: 0.12 }, width: 0.08, height: 0.01 }
     goal_pos: { center: { x: 0.79, y: 0.88 }, width: 0.08, height: 0.01 }
     radius: 0.0085
@@ -40,7 +41,7 @@ agents:
     agent_col: green
 
 obstacles:
-  # Central vertical walls (narrowed)
+  # Central vertical walls
   - shape:
       type: rectangle
       center: { x: 0.5, y: 0.2 }
@@ -52,14 +53,14 @@ obstacles:
       width: 0.02
       height: 0.3
 
-  # Horizontal wall at top-right
+  # Horizontal short wall
   - shape:
       type: rectangle
       center: { x: 0.7, y: 0.8 }
       width: 0.02
       height: 0.02
 
-  # Moving platform (timing challenge)
+  # Moving platform
   - shape:
       type: rectangle
       center: { x: 0.5, y: 0.5 }

@@ -400,11 +400,11 @@ class Environment(pettingzoo.ParallelEnv):
         if agent.goal_reached:
             return 100.0
         if collision_data.is_colliding:
-            # Soft penalty for bumping teammates (they need to move together)
+            # Soft penalty for bumping teammates (to encourage tight formation)
             # Hard penalty for hitting walls/obstacles (must avoid these)
             if collision_data.colliding_with == "agent":
-                return -2.0
-            return -10.0
+                return -self.config.agent_collision_penalty
+            return -self.config.collision_penalty
 
         # 1. Potential-based shaping: dense gradient toward goal
         curr_dist = np.linalg.norm(agent.goal_pos - agent.pos)
@@ -455,19 +455,25 @@ class Environment(pettingzoo.ParallelEnv):
             return  # Already resolved
         if not (self.config.winner_team_bonus != 0 or self.config.loser_team_penalty != 0):
             return
+            
         for agent_id, agent in self.agents_dict.items():
             if agent.goal_reached:
                 winning_group = self.agent_group_map[agent_id]
                 self.winning_group = winning_group
-                # Reward winning team's other members
+                
+                # Winner gets +100 (via calculate_reward)
+                # Winner's teammate gets bonus
                 for aid in self.group_members[winning_group]:
                     if aid != agent_id:
                         self.pending_group_bonus[aid] += self.config.winner_team_bonus
-                # Penalize all losing team members
+                
+                # Penalize all losing team members for both losing AND not finishing
                 for group_idx, members in self.group_members.items():
                     if group_idx != winning_group:
                         for aid in members:
-                            self.pending_group_bonus[aid] += self.config.loser_team_penalty
+                            # Total penalty = loser_team_penalty + not_reached_goal_penalty
+                            # (both should be positive in config, will be subtracted here)
+                            self.pending_group_bonus[aid] -= (self.config.loser_team_penalty + self.config.not_reached_goal_penalty)
                 break
 
     def step(self, actions: dict[str, np.ndarray]):
