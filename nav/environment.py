@@ -220,9 +220,9 @@ class Environment(pettingzoo.ParallelEnv):
                 target_fps=30, record=True, headless=headless
             )
             
-        self.stuck_check_interval = 50
-        self.stuck_min_dist = 0.5
-        self.agent_stuck_counters = {agent_id: 0 for agent_id in self.agents}
+        self.stuck_check_interval = 10
+        self.stuck_min_dist = 0.02
+        self.agent_stuck_points = {agent_id: [] for agent_id in self.agents}
         self.agent_last_positions = {agent_id: agent.pos.copy() for agent_id, agent in self.agents_dict.items()}
 
     def preprocess_agent_configs(
@@ -418,6 +418,13 @@ class Environment(pettingzoo.ParallelEnv):
                 reward += switch.reward
         if self.gate_just_opened:
             reward += 2.0
+        
+        # Stuck penalty to discourage staying in problematic areas
+        for stuck_pos in self.agent_stuck_points.get(agent.agent_id, []):
+            dist_to_stuck = np.linalg.norm(agent.pos - stuck_pos)
+            if dist_to_stuck < 0.05:
+                reward -= (0.05 - dist_to_stuck) * 100 # Heavy penalty for re-entering stuck zone
+                
         reward += self.pending_group_bonus.get(agent.agent_id, 0.0)
         if self.config.formation_reward_weight > 0:
             group_idx = self.agent_group_map[agent.agent_id]
@@ -491,8 +498,13 @@ class Environment(pettingzoo.ParallelEnv):
             agent = self.agents_dict[agent_id]
             agent.update_pos(DELTA_T)
             if self.num_steps % self.stuck_check_interval == 0:
-                if np.linalg.norm(agent.pos - self.agent_last_positions[agent_id]) < self.stuck_min_dist:
-                    angle = np.arctan2(agent.direction[1], agent.direction[0]) + np.deg2rad(np.random.uniform(120, 240))
+                dist_moved = np.linalg.norm(agent.pos - self.agent_last_positions[agent_id])
+                if dist_moved < self.stuck_min_dist:
+                    # Record the stuck point to prevent re-sticking via reward penalty
+                    self.agent_stuck_points[agent_id].append(agent.pos.copy())
+                    
+                    # Apply a stronger unjam nudge
+                    angle = np.random.uniform(0, 2 * np.pi)
                     agent.direction = np.array([np.cos(angle), np.sin(angle)])
                 self.agent_last_positions[agent_id] = agent.pos.copy()
             cd = CollisionData()
