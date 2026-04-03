@@ -105,3 +105,5 @@ class EnvConfig(BaseModel):
     agent_collision_penalty: float = 2.0  # Penalty for bumping into teammates
     not_reached_goal_penalty: float = 0.0 # Penalty for agents that haven't reached goal when episode ends
     goal_reach_bonus: float = 100.0       # Bonus for reaching the goal
+    obstacle_noise: float = 0.02          # Random jitter for obstacle positions
+    agent_spawn_noise: float = 0.03       # Random jitter for agent starting positions

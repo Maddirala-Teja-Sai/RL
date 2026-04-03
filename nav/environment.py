@@ -327,7 +327,11 @@ class Environment(pettingzoo.ParallelEnv):
                 pos = sample_point_in_rectangle(agent.config.start_pos)
                 num_tries += 1
             starting_points.append(pos)
-            agent.pos = pos
+            
+            # Apply agent_spawn_noise jitter on top of rectangle sampling
+            jitter = np.random.uniform(-self.config.agent_spawn_noise, self.config.agent_spawn_noise, size=2)
+            agent.pos = np.clip(pos + jitter, 0.0, 1.0) # Stay within map
+            
             agent.goal_pos = sample_point_in_rectangle(agent.goal_sample_area)
             agent.current_speed = 0.1
             _, agent.direction = convert_to_polar(agent.goal_pos - agent.pos)
@@ -339,7 +343,7 @@ class Environment(pettingzoo.ParallelEnv):
 
         for obs in self.obstacles:
             if hasattr(obs, "reset"):
-                obs.reset()
+                obs.reset(noise=self.config.obstacle_noise)
 
         self.num_steps = 0
         self.agents = self.possible_agents.copy()

@@ -18,7 +18,7 @@ class Obstacle(ABC):
         self.schedule = config.schedule
 
     @abstractmethod
-    def reset(self):
+    def reset(self, noise: float = None):
         pass
 
     @abstractmethod
@@ -56,14 +56,15 @@ class RectangleObstacle(Obstacle):
         self.rotation = shape.rotation
         self.noise = config.noise if config.noise is not None else OBSTACLE_NOISE
 
-    def reset(self):
+    def reset(self, noise: float = None):
         shape = self.config.shape
+        use_noise = noise if noise is not None else self.noise
         self.center = shape.center.to_numpy() + np.array(
-            [get_random_noise(self.noise), get_random_noise(self.noise)]
+            [get_random_noise(use_noise), get_random_noise(use_noise)]
         )
-        self.width = shape.width + get_random_noise(self.noise)
-        self.height = shape.height + get_random_noise(self.noise)
-        if self.noise == 0:
+        self.width = shape.width + get_random_noise(use_noise)
+        self.height = shape.height + get_random_noise(use_noise)
+        if use_noise == 0:
             self.rotation = 0
         else:
             self.rotation = shape.rotation + np.random.uniform(-10, 10)
@@ -156,12 +157,13 @@ class CircleObstacle(Obstacle):
         self.radius = shape_config.radius
         self.noise = config.noise if config.noise is not None else OBSTACLE_NOISE
 
-    def reset(self):
+    def reset(self, noise: float = None):
         shape = self.config.shape
+        use_noise = noise if noise is not None else self.noise
         self.center = shape.center.to_numpy() + np.array(
-            [get_random_noise(self.noise), get_random_noise(self.noise)]
+            [get_random_noise(use_noise), get_random_noise(use_noise)]
         )
-        self.radius = shape.radius + get_random_noise(self.noise)
+        self.radius = shape.radius + get_random_noise(use_noise)
 
     def get_current_state(self):
         return Circle(
