@@ -4,15 +4,15 @@ goal_threshold: 0.015
 num_agents_per_group: 2          # 2 agents per group entry = 4 total agents
 terminal_strategy: any           # Episode ends when ANY ONE agent reaches its goal
 simultaneous_arrival_bonus: 0.0
-formation_reward_weight: 0.6     # Slightly higher cohesion
-potential_shaping_scale: 22.0     # STRONGER PULL: Force them to move!
-stuck_zone_penalty: 50.0         # Reduced to encourage trying new paths
+formation_reward_weight: 0.6     
+potential_shaping_scale: 25.0     # EASY MODE: Maximum pull to ensure movement
+stuck_zone_penalty: 10.0         # EASY MODE: Minimal penalty for revisiting spots
 goal_reach_bonus: 100.0           
 winner_team_bonus: 70.0           
-loser_team_penalty: 30.0          
-not_reached_goal_penalty: 40.0    
-collision_penalty: 12.0           # REDUCED: Lower the "fear" of touching walls
-agent_collision_penalty: 5.0      # REDUCED: Easier to pass each other
+loser_team_penalty: 20.0          # EASY MODE: Low competitive pressure
+not_reached_goal_penalty: 20.0    # EASY MODE: Low timeout pressure
+collision_penalty: 5.0            # EASY MODE: Very low fear of walls
+agent_collision_penalty: 2.0      # EASY MODE: Very low fear of teammates
 
 boundary:
   type: polygon

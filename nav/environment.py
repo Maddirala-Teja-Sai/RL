@@ -538,7 +538,7 @@ class Environment(pettingzoo.ParallelEnv):
             agent.update_pos(DELTA_T)
             if self.num_steps % self.stuck_check_interval == 0:
                 dist_moved = np.linalg.norm(agent.pos - self.agent_last_positions[agent_id])
-                if dist_moved < self.stuck_min_dist and not agent.goal_reached:
+                if self.num_steps > 10 and dist_moved < self.stuck_min_dist and not agent.goal_reached:
                     # Layer 2: Record stuck point for avoidance penalty
                     self.agent_stuck_points[agent_id].append(agent.pos.copy())
                     # Full random escape direction (360 degrees)
