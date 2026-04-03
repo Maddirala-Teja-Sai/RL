@@ -28,9 +28,11 @@ class BoundaryState(BaseModel):
 
 
 class SwitchState(BaseModel):
+    shape: str = "rectangle" # "rectangle", "circle"
     center: Tuple[float, float]
-    width: float
-    height: float
+    width: float = 0
+    height: float = 0
+    radius: float = 0
     rotation: float = 0
     color: str = "cyan"
     active: bool = False

@@ -226,14 +226,20 @@ class SimulationWindow(arcade.Window):
         for switch in self.current_state.switches:
             x = switch.center[0] * self.width
             y = switch.center[1] * self.height
-            width = switch.width * self.width
-            height = switch.height * self.height
-            rect = arcade.XYWH(x, y, width, height)
             switch_color = SWITCH_COLORS.get(getattr(switch, "color", "cyan"), arcade.color.CYAN)
             if not switch.active:
                 switch_color = tuple(max(40, int(c * 0.45)) for c in switch_color[:3])
-            arcade.draw_rect_filled(rect, switch_color, switch.rotation)
-            arcade.draw_rect_outline(rect, arcade.color.WHITE, 2, switch.rotation)
+            
+            if switch.shape == "circle":
+                radius = switch.radius * self.width
+                arcade.draw_circle_filled(x, y, radius, switch_color)
+                arcade.draw_circle_outline(x, y, radius, arcade.color.WHITE, 2)
+            else: # Rectangle
+                width = switch.width * self.width
+                height = switch.height * self.height
+                rect = arcade.XYWH(x, y, width, height)
+                arcade.draw_rect_filled(rect, switch_color, switch.rotation)
+                arcade.draw_rect_outline(rect, arcade.color.WHITE, 2, switch.rotation)
 
         if DRAW_RAYS:
             # --- Draw Rays (behind agents) ---

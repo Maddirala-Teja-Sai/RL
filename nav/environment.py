@@ -633,4 +633,11 @@ class Environment(pettingzoo.ParallelEnv):
 
     def get_render_state(self):
         agents = [AgentState(position=(a.pos[0], a.pos[1]), radius=a.radius, color=a.config.agent_col, velocity=(a.current_speed*a.direction[0], a.current_speed*a.direction[1]), direction=(a.direction[0], a.direction[1]), lidar_observation=a.last_raw_lidar_observation, fov_degrees=a.config.fov_degrees, max_range=a.config.max_range, goals=Circle(center=Vector2(x=a.goal_pos[0], y=a.goal_pos[1]), radius=self.config.goal_threshold), goal_reached=a.goal_reached, last_reward=a.last_reward) for a in self.agents_dict.values()]
-        return RenderState(agents=agents, obstacles=[o.get_current_state() for o in self._active_obstacles()], boundary=BoundaryState(vertices=[(v[0], v[1]) for v in self.boundary.vertices]), switches=[SwitchState(center=(s.zone.center.x, s.zone.center.y), width=s.zone.width, height=s.zone.height, rotation=s.zone.rotation, color=s.color, active=i in self.active_switches) for i, s in enumerate(self.switches)])
+        switches = []
+        for i, s in enumerate(self.switches):
+            if isinstance(s.zone, Circle):
+                switches.append(SwitchState(shape="circle", center=(s.zone.center.x, s.zone.center.y), radius=s.zone.radius, color=s.color, active=i in self.active_switches))
+            else: # Rectangle
+                switches.append(SwitchState(shape="rectangle", center=(s.zone.center.x, s.zone.center.y), width=s.zone.width, height=s.zone.height, rotation=s.zone.rotation, color=s.color, active=i in self.active_switches))
+        
+        return RenderState(agents=agents, obstacles=[o.get_current_state() for o in self._active_obstacles()], boundary=BoundaryState(vertices=[(v[0], v[1]) for v in self.boundary.vertices]), switches=switches)
