@@ -1,12 +1,12 @@
 num_rays: 32
 repeat_steps: 2
 goal_threshold: 0.015
-num_agents_per_group: 5          # All 5 in one group for formation tracking
+num_agents_per_group: 2          # Both agents form ONE group — must move together
 terminal_strategy: any           # Episode ends when ANY ONE agent reaches its goal
-simultaneous_arrival_bonus: 40.0 # Bonus if 2+ agents arrive in same window
+simultaneous_arrival_bonus: 50.0 # Big bonus if BOTH arrive in the same window
 simultaneous_arrival_window: 60  # Within 60 steps = "arrived together"
-formation_reward_weight: 0.5     # Core cooperation: stay close while moving
-potential_shaping_scale: 6.0     # Dense navigation signal toward goal
+formation_reward_weight: 0.6     # Strong formation cohesion — must stay close
+potential_shaping_scale: 6.0     # Dense navigation reward
 stuck_zone_penalty: 80.0         # Penalty for revisiting stuck positions
 
 boundary:
@@ -18,51 +18,28 @@ boundary:
     - { x: 0.05, y: 0.95 }
 
 agents:
-  # 5 agents start at the bottom, goals clustered at the top-right.
-  # They MUST stay in formation to get the formation reward.
-  # The episode ends as soon as any ONE reaches its goal.
-  - start_pos: { center: { x: 0.10, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.76, y: 0.88 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
-    max_speed: 0.12
-    fov_degrees: 360
-    max_range: 0.18
-    agent_col: red
-
+  # 2 agents in one formation group.
+  # They must move together — separating reduces reward.
+  # Episode ends when either one reaches its goal.
+  # The simultaneous bonus fires if BOTH arrive within 60 steps of each other.
   - start_pos: { center: { x: 0.12, y: 0.15 }, width: 0.01, height: 0.01 }
     goal_pos: { center: { x: 0.78, y: 0.88 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
+    radius: 0.0085
     max_speed: 0.12
     fov_degrees: 360
-    max_range: 0.18
-    agent_col: blue
-
-  - start_pos: { center: { x: 0.14, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.80, y: 0.88 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
-    max_speed: 0.12
-    fov_degrees: 360
-    max_range: 0.18
-    agent_col: green
+    max_range: 0.20
+    agent_col: red
 
   - start_pos: { center: { x: 0.16, y: 0.15 }, width: 0.01, height: 0.01 }
     goal_pos: { center: { x: 0.82, y: 0.88 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
+    radius: 0.0085
     max_speed: 0.12
     fov_degrees: 360
-    max_range: 0.18
-    agent_col: yellow
-
-  - start_pos: { center: { x: 0.18, y: 0.15 }, width: 0.01, height: 0.01 }
-    goal_pos: { center: { x: 0.84, y: 0.88 }, width: 0.01, height: 0.01 }
-    radius: 0.0075
-    max_speed: 0.12
-    fov_degrees: 360
-    max_range: 0.18
-    agent_col: cyan
+    max_range: 0.20
+    agent_col: blue
 
 obstacles:
-  # Central vertical walls (narrowed by user for wider corridor)
+  # Central vertical walls (narrowed for wider corridor)
   - shape:
       type: rectangle
       center: { x: 0.5, y: 0.2 }
@@ -74,14 +51,14 @@ obstacles:
       width: 0.02
       height: 0.3
 
-  # Horizontal wall at top-right (user-added)
+  # Horizontal wall at top-right
   - shape:
       type: rectangle
       center: { x: 0.7, y: 0.8 }
       width: 0.3
       height: 0.02
 
-  # Moving platform sliding horizontally (creates timing challenge)
+  # Moving platform (creates timing challenge)
   - shape:
       type: rectangle
       center: { x: 0.5, y: 0.5 }
@@ -113,7 +90,7 @@ obstacles:
       center: { x: 0.7, y: 0.65 }
       radius: 0.05
 
-  # Left-side circle (user-added)
+  # Left-side circle
   - shape:
       type: circle
       center: { x: 0.2, y: 0.65 }
