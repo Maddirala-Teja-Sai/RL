@@ -4,15 +4,15 @@ goal_threshold: 0.015
 num_agents_per_group: 2          # 2 agents per group entry = 4 total agents
 terminal_strategy: any           # Episode ends when ANY ONE agent reaches its goal
 simultaneous_arrival_bonus: 0.0
-formation_reward_weight: 0.5     # Must stay close within each group
-potential_shaping_scale: 6.0
-stuck_zone_penalty: 80.0
-goal_reach_bonus: 100.0           # Bonus for reaching the goal (Winner gets this)
-winner_team_bonus: 60.0           # Bonus for winner's teammate
-loser_team_penalty: 40.0          # Penalty for losing the race
-not_reached_goal_penalty: 40.0    # Penalty for not finishing (Timeout)
-collision_penalty: 25.0           # Penalty for hitting walls/obstacles
-agent_collision_penalty: 10.0     # Penalty for bumping into teammates
+formation_reward_weight: 0.6     # Slightly higher cohesion
+potential_shaping_scale: 22.0     # STRONGER PULL: Force them to move!
+stuck_zone_penalty: 50.0         # Reduced to encourage trying new paths
+goal_reach_bonus: 100.0           
+winner_team_bonus: 70.0           
+loser_team_penalty: 30.0          
+not_reached_goal_penalty: 40.0    
+collision_penalty: 12.0           # REDUCED: Lower the "fear" of touching walls
+agent_collision_penalty: 5.0      # REDUCED: Easier to pass each other
 
 boundary:
   type: polygon
@@ -74,7 +74,7 @@ obstacles:
       boundary_x_min: 0.25
       boundary_x_max: 0.75
 
-  # Left-side spinning block
+  # Left-side spinning block (Adjusted y from 0.5 to 0.3)
   - shape:
       type: rectangle
       center: { x: 0.3, y: 0.3 }
